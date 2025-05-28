@@ -32,4 +32,4 @@ function App({ signOut: uiSignOut /* injected by withAuthenticator */ }) {
     );
 }
 
-export default App;               // unchanged
+export default withAuthenticator(App);               // unchanged
