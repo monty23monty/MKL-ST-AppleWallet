@@ -1,7 +1,7 @@
 {
   "name": "aws-amplify",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aws-amplify/api": "^6.3.12",
+    "@aws-amplify/ui-react": "^6.4.0",
+    "aws-amplify": "^6.14.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

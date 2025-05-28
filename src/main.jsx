@@ -1,10 +1,14 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.jsx'
+// src/main.jsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+import { Amplify } from 'aws-amplify';
+import awsConfig   from './awsConfig.js';     // v6 config from the previous step
+import App         from './App.jsx';
+
+Amplify.configure(awsConfig);                // configure once, before render
+ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+        <App />                                  {/* wrapped by withAuthenticator inside */}
+    </React.StrictMode>,
+);
