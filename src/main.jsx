@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 import { Amplify } from 'aws-amplify';
-import awsConfig   from './awsConfig.js';     // v6 config from the previous step
+import { awsConfig }   from './awsConfig.js';     // v6 config from the previous step
 import App         from './App.jsx';
 
 Amplify.configure(awsConfig);                // configure once, before render
