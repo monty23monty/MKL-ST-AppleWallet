@@ -6,7 +6,7 @@ export default function Navbar({ onSignOut }) {
         <header className="navbar">
             <div className="navbar-brand">
                 <img src="/vite.svg" alt="Logo" className="navbar-logo" />
-                <NavLink to="/dashboard" className="home-link" title="Dashboard">
+                <NavLink to="/dashboard" className="home-link" title="Dashboard" aria-label="Dashboard">
                     🏠
                 </NavLink>
             </div>
