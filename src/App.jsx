@@ -1,11 +1,13 @@
 // App.jsx / App.tsx
-import { NavLink, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { signOut } from 'aws-amplify/auth';           // 👈 modular Auth
 import { withAuthenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
-import awsConfig from './awsConfig.js';                  // default export from CLI
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
+import CreatePass from './pages/CreatePass';
+import UpdatePass from './pages/UpdatePass';
+import Navbar from './components/Navbar';
 
 function App() {
 
@@ -17,15 +19,13 @@ function App() {
 
     return (
         <div className="container">
-            <nav>
-                <NavLink to="/dashboard">Dashboard</NavLink>
-                <NavLink to="/customers">Customers</NavLink>
-                <button onClick={handleSignOut}>Sign&nbsp;out</button>
-            </nav>
+            <Navbar onSignOut={handleSignOut} />
             <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/customers" element={<Customers />} />
+                <Route path="/create-pass" element={<CreatePass />} />
+                <Route path="/update-pass" element={<UpdatePass />} />
             </Routes>
         </div>
     );
