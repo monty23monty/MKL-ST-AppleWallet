@@ -1,5 +1,5 @@
 // App.jsx / App.tsx
-import { useState } from 'react';
+import { NavLink, Routes, Route, Navigate } from 'react-router-dom';
 import { Amplify } from 'aws-amplify';
 import { signOut } from 'aws-amplify/auth';           // 👈 modular Auth
 import { withAuthenticator } from '@aws-amplify/ui-react';
@@ -10,8 +10,7 @@ import Customers from './pages/Customers';
 
 Amplify.configure(awsConfig);                         // still the same
 
-function App({ signOut: uiSignOut /* injected by withAuthenticator */ }) {
-    const [tab, setTab] = useState('dash');
+function App() {
 
     async function handleSignOut() {
         // Either call the helper prop or the low-level API—your choice
@@ -20,14 +19,17 @@ function App({ signOut: uiSignOut /* injected by withAuthenticator */ }) {
     }
 
     return (
-        <div style={{ padding: 20 }}>
+        <div className="container">
             <nav>
-                <button onClick={() => setTab('dash')}>Dashboard</button>
-                <button onClick={() => setTab('cust')}>Customers</button>
+                <NavLink to="/dashboard">Dashboard</NavLink>
+                <NavLink to="/customers">Customers</NavLink>
                 <button onClick={handleSignOut}>Sign&nbsp;out</button>
             </nav>
-
-            {tab === 'dash' ? <Dashboard /> : <Customers />}
+            <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/customers" element={<Customers />} />
+            </Routes>
         </div>
     );
 }
