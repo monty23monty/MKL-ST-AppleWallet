@@ -1,5 +1,5 @@
 // src/api.js
-import { get, post } from 'aws-amplify/api';   // v6 functional API :contentReference[oaicite:2]{index=2}
+import { get, post } from 'aws-amplify/api';   // v6 functional API
 
 /** GET  https://…/admin/metrics */
 export async function getMetrics() {

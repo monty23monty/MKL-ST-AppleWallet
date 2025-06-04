@@ -10,3 +10,5 @@ export const awsConfig = {
         ]
     }
 };
+
+export default awsConfig;
