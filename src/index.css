@@ -1,16 +1,26 @@
 :root {
+  --bg-color: #ffffff;
+  --text-color: #213547;
+  --navbar-bg: #1a1a1a;
+  --navbar-text: #ffffff;
+  --container-bg: #ffffff;
+
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body.dark {
+  --bg-color: #242424;
+  --text-color: rgba(255, 255, 255, 0.87);
+  --navbar-bg: #ffffff;
+  --navbar-text: #242424;
+  --container-bg: #333333;
 }
 
 a {
@@ -29,6 +39,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   flex-direction: column;
+  background-color: var(--bg-color);
+  color: var(--text-color);
 }
 
 h1 {
@@ -74,6 +86,9 @@ nav a.active {
   padding: 2rem;
   max-width: 900px;
   width: 100%;
+  background-color: var(--container-bg);
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 table {
@@ -91,15 +106,3 @@ tbody tr:nth-child(odd) {
 }
 
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
-}
