@@ -5,6 +5,8 @@
   padding: 0.5rem 1rem;
   gap: 1rem;
   flex-wrap: wrap;
+  background-color: var(--navbar-bg);
+  color: var(--navbar-text);
 }
 
 .navbar-brand {
@@ -22,6 +24,13 @@
   display: flex;
   gap: 1rem;
   align-items: center;
+}
+
+.theme-toggle {
+  background: transparent;
+  border: 1px solid currentColor;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
 }
 
 .navbar nav a {
