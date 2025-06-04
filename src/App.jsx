@@ -4,7 +4,7 @@ import { Amplify } from 'aws-amplify';
 import { signOut } from 'aws-amplify/auth';           // 👈 modular Auth
 import { withAuthenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
-import awsConfig from './awsConfig';                  // default export from CLI
+import awsConfig from './awsConfig.js';                  // default export from CLI
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 
