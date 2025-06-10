@@ -5,7 +5,7 @@ function Field({ label, type = 'text', path, data, set }) {
     const value = path.split('.').reduce((o, k) => {
         if (o == null) return '';
         return Array.isArray(o) ? o[Number(k)] : o[k];
-    }, data) || '';
+    }, data) ?? '';
 
     const onChange = e => {
         const clone = structuredClone(data);
