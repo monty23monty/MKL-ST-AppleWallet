@@ -8,17 +8,8 @@ import Customers from './pages/Customers';
 import CreatePass from './pages/CreatePass';
 import UpdatePass from './pages/UpdatePass';
 import Navbar from './components/Navbar';
-import { useEffect, useState } from 'react';
 
 function App() {
-    const [darkMode, setDarkMode] = useState(() => {
-        return localStorage.getItem('darkMode') === 'true';
-    });
-
-    useEffect(() => {
-        document.body.classList.toggle('dark', darkMode);
-        localStorage.setItem('darkMode', darkMode);
-    }, [darkMode]);
 
     async function handleSignOut() {
         // Either call the helper prop or the low-level API—your choice
@@ -28,7 +19,7 @@ function App() {
 
     return (
         <div className="container">
-            <Navbar onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} />
+            <Navbar onSignOut={handleSignOut} />
             <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
