@@ -94,7 +94,7 @@ export async function updatePassData(serial, passData) {
         path: `/admin/passes/${serial}`,
         options: {
             headers,
-            body: JSON.stringify({ passData })
+            body: { passData },
         },
     }).response;
     return body.json();
