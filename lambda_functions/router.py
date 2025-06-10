@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import time
 
 import boto3
 from boto3.dynamodb.conditions import Attr
@@ -36,6 +37,101 @@ def _check_token(serial, token, pass_type):
             item.get('auth') == token
     )
 
+# ─── registration (POST) ───────────────────────────────────────────────────────
+def _maybe_register(event, raw):
+    if event["requestContext"]["http"]["method"] != "POST":
+        return None
+
+    parts = raw.split("?", 1)[0].split("/")
+    if len(parts) != 7 or parts[2] != "devices" or parts[4] != "registrations":
+        return None
+
+    device_id = parts[3]
+    pass_type = parts[5]
+    serial    = parts[6]
+
+    token = _auth(event)
+    if not _check_token(serial, token, pass_type):
+        return {'statusCode': 401}
+
+    body = json.loads(event.get('body') or '{}')
+    push_token = body.get("pushToken")
+    if not push_token:
+        return {'statusCode': 400,
+                'body': json.dumps({'message': 'Missing pushToken'})}
+
+    now = int(time.time() * 1000)
+    regs.put_item(Item={
+        'deviceLibraryIdentifier': device_id,   # ← partition key
+        'serialNumber':            serial,      # ← sort key
+        'passTypeIdentifier':      pass_type,
+        'pushToken':               push_token,
+        'updatedAt':               now
+    })
+    logger.info("REGISTERED device=%s passType=%s serial=%s", device_id, pass_type, serial)
+    return {'statusCode': 201}
+
+
+# ─── list registrations (GET) ──────────────────────────────────────────────────
+def _maybe_list_regs(event, raw):
+    if event["requestContext"]["http"]["method"] != "GET":
+        return None
+
+    parts = raw.split("?", 1)[0].split("/")
+    if len(parts) != 6 or parts[2] != "devices" or parts[4] != "registrations":
+        return None
+
+    device_id = parts[3]
+    pass_type = parts[5]
+
+    # optional ?passesUpdatedSince= epoch-ms
+    qs  = event.get("queryStringParameters") or {}
+    since_ms = int(qs["passesUpdatedSince"]) if qs.get("passesUpdatedSince", "").isdigit() else 0
+
+    # query on partition key only, then filter in memory
+    resp  = regs.query(
+        KeyConditionExpression=boto3.dynamodb.conditions.Key('deviceLibraryIdentifier').eq(device_id)
+    )
+    items = [i for i in resp["Items"] if i.get("passTypeIdentifier") == pass_type]
+
+    if since_ms:
+        items = [i for i in items if i.get("updatedAt", 0) > since_ms]
+
+    if not items:
+        return {"statusCode": 204}
+
+    serials   = [i["serialNumber"] for i in items]
+    last_upd  = max(i.get("updatedAt", 0) for i in items)
+    return {"statusCode": 200,
+            "body": json.dumps({"serialNumbers": serials,
+                                "lastUpdated":  last_upd})}
+
+def _maybe_unregister(event, raw):
+    if event["requestContext"]["http"]["method"] != "DELETE":
+        return None
+
+    parts = raw.split("?", 1)[0].split("/")
+    if len(parts) != 7 or parts[2] != "devices" or parts[4] != "registrations":
+        return None
+
+    device_id = parts[3]
+    pass_type = parts[5]
+    serial    = parts[6]
+
+    token = _auth(event)
+    if not _check_token(serial, token, pass_type):
+        return {"statusCode": 401}
+
+    # The table’s key-schema is (deviceLibraryIdentifier, serialNumber)
+    regs.delete_item(Key={
+        "deviceLibraryIdentifier": device_id,
+        "serialNumber":            serial
+    })
+
+    logger.info("UNREGISTERED device=%s passType=%s serial=%s",
+                device_id, pass_type, serial)
+    return {"statusCode": 200}
+
 
 def lambda_handler(event, _ctx):
     logger.info("REQUEST: method=%s rawPath=%s routeKey=%s pathParams=%s",
@@ -47,6 +143,21 @@ def lambda_handler(event, _ctx):
     raw = event['rawPath']
     qp = event.get('queryStringParameters') or {}
     pp = event.get('pathParameters') or {}
+    resp = _maybe_register(event, raw)
+    if resp:
+        return resp
+    resp = _maybe_list_regs(event, raw)      # ← new line
+    if resp:
+        return resp
+    resp = _maybe_unregister(event, raw)
+    if resp:
+        return resp
+
+    parts = raw.split("/")
+    device_id = parts[3] if len(parts) > 3 else None
+    pass_type = parts[5] if len(parts) > 5 else None
+    serial_param = parts[6] if len(parts) > 6 else None
+    logger.info("ROUTE: device_id=%s pass_type=%s serial=%s", device_id, pass_type, serial_param)
 
     # extract common path parameters
     pass_type = pp.get('passTypeIdentifier')
@@ -79,6 +190,7 @@ def lambda_handler(event, _ctx):
 
             # 3) if nothing has changed, send 304
             if ims is not None and last_mod <= ims:
+                logger.debug("Nothing to do, 304")
                 return {
                     'statusCode': 304,
                     # no body, no PKPASS content
@@ -123,21 +235,26 @@ def lambda_handler(event, _ctx):
             })
         }
 
-    # 3. POST /v1/devices/{deviceLID}/registrations/{passTypeIdentifier}
-    if method == 'POST' and device_id and pass_type and raw.startswith(
-            f"/v1/devices/{device_id}/registrations/{pass_type}"):
+ #3. POST /v1/devices/{deviceLID}/registrations/{passTypeIdentifier}/{serialNumber}
+    if (method == 'POST'
+            and device_id
+            and pass_type
+            and serial_param
+            and raw.startswith(f"/v1/devices/{device_id}/registrations/{pass_type}/{serial_param}")
+    ):
         token = _auth(event)
-        if not _check_token(serial, token, pass_type):
+        if not _check_token(serial_param, token, pass_type):
             return {'statusCode': 401}
         body = json.loads(event.get('body') or '{}')
         if 'pushToken' not in body:
-            return {'statusCode': 400, 'body': json.dumps({'message': 'Missing pushToken'})}
-        # write registration
+            return {'statusCode': 400,
+                    'body': json.dumps({'message': 'Missing pushToken'})}
+        # persist the device↔pass registration
         regs.put_item(Item={
             'deviceLibraryIdentifier': device_id,
-            'passTypeIdentifier': pass_type,
-            'serialNumber': serial,
-            'pushToken': body['pushToken']
+            'passTypeIdentifier':   pass_type,
+            'serialNumber':         serial_param,
+            'pushToken':            body['pushToken']
         })
         return {'statusCode': 201}
 
@@ -180,4 +297,5 @@ def lambda_handler(event, _ctx):
         return {'statusCode': 200}
 
     # anything else…
+    logger.warning("FELL THROUGH to 404 for rawPath=%s", raw)
     return {'statusCode': 404}

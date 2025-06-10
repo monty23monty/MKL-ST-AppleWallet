@@ -49,13 +49,11 @@ export async function bulkSend() {
 /** POST https://…/admin/resend/{serial}   (empty JSON body) */
 export async function resendPass(serial) {
     const headers = await getAuthHeaders();
-    const { body } = await post({
+    await post({
         apiName: 'wallet',
         path: `/admin/resend/${serial}`,
         options: { headers, body: {} },
     }).response;
-
-    return body.json();
 }
 
 // ⬆ existing imports & calls

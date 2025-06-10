@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { listPasses, getPassData, updatePassData, resendPass } from '../api';
+import {useEffect, useState} from 'react';
+import {getPassData, listPasses, updatePassData} from '../api';
+import PassPreview from "../components/PassPreview.jsx";
 
-function Field({ label, type = 'text', path, data, set }) {
+function Field({label, type = 'text', path, data, set}) {
     const value = path.split('.').reduce((o, k) => {
         if (o == null) return '';
         return Array.isArray(o) ? o[Number(k)] : o[k];
@@ -17,15 +18,15 @@ function Field({ label, type = 'text', path, data, set }) {
     };
 
     return (
-        <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
+        <div style={{marginBottom: 12}}>
+            <label style={{display: 'block', fontSize: 12, marginBottom: 4}}>
                 {label}
             </label>
             <input
                 type={type}
                 value={value}
                 onChange={onChange}
-                style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
+                style={{width: '100%', padding: 6, boxSizing: 'border-box'}}
             />
         </div>
     );
@@ -55,7 +56,14 @@ function isoToLocal(z) {
 }
 
 function toIsoZ(local) {
-    return new Date(local).toISOString();
+    const date = new Date(local);
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const hour = String(date.getUTCHours()).padStart(2, '0');
+    const minute = String(date.getUTCMinutes()).padStart(2, '0');
+    const second = String(date.getUTCSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
 }
 
 export default function UpdatePass() {
@@ -120,7 +128,6 @@ export default function UpdatePass() {
                 },
             };
             await updatePassData(selected, pd);
-            await resendPass(selected);
             alert('Pass updated and pushed!');
         } catch (err) {
             console.error(err);
@@ -133,183 +140,189 @@ export default function UpdatePass() {
     if (loading) return <p>Loading…</p>;
 
     return (
-        <div>
-            <h2>Update a Pass</h2>
-            <label>
-                Choose pass:
-                <select
-                    value={selected}
-                    onChange={e => setSelected(e.target.value)}
-                    style={{ marginLeft: 8 }}
-                >
-                    <option value="">— select —</option>
-                    {passes.map(p => (
-                        <option key={p.serialNumber} value={p.serialNumber}>
-                            {p.email} | {p.serialNumber}
-                        </option>
-                    ))}
-                </select>
-            </label>
+        <div style={{display: 'flex', alignItems: 'flex-start', gap: 40}}>
+            <div style={{flex: 1}}>
+                <div>
+                    <h2>Update a Pass</h2>
+                    <label>
+                        Choose pass:
+                        <select
+                            value={selected}
+                            onChange={e => setSelected(e.target.value)}
+                            style={{marginLeft: 8}}
+                        >
+                            <option value="">— select —</option>
+                            {passes.map(p => (
+                                <option key={p.serialNumber} value={p.serialNumber}>
+                                    {p.email} | {p.serialNumber}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
 
-            {data && (
-                <form onSubmit={handleSubmit} style={{ marginTop: 20 }}>
-                    <Field
-                        label="Organization Name"
-                        path="organizationName"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Description"
-                        path="description"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Background Color"
-                        path="backgroundColor"
-                        type="color"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Foreground Color"
-                        path="foregroundColor"
-                        type="color"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Label Color"
-                        path="labelColor"
-                        type="color"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Logo Text"
-                        path="logoText"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Relevant Date & Time"
-                        path="relevantDate"
-                        type="datetime-local"
-                        data={data}
-                        set={setData}
-                    />
+                    {data && (
+                        <form onSubmit={handleSubmit} style={{marginTop: 20}}>
+                            <Field
+                                label="Organization Name"
+                                path="organizationName"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Description"
+                                path="description"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Background Color"
+                                path="backgroundColor"
+                                type="color"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Foreground Color"
+                                path="foregroundColor"
+                                type="color"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Label Color"
+                                path="labelColor"
+                                type="color"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Logo Text"
+                                path="logoText"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Relevant Date & Time"
+                                path="relevantDate"
+                                type="datetime-local"
+                                data={data}
+                                set={setData}
+                            />
 
-                    <h3>Header Field</h3>
-                    <Field
-                        label="Header Label"
-                        path="eventTicket.headerFields.0.label"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Header Value"
-                        path="eventTicket.headerFields.0.value"
-                        type="datetime-local"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Header DateStyle"
-                        path="eventTicket.headerFields.0.dateStyle"
-                        data={data}
-                        set={setData}
-                    />
+                            <h3>Header Field</h3>
+                            <Field
+                                label="Header Label"
+                                path="eventTicket.headerFields.0.label"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Header Value"
+                                path="eventTicket.headerFields.0.value"
+                                type="datetime-local"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Header DateStyle"
+                                path="eventTicket.headerFields.0.dateStyle"
+                                data={data}
+                                set={setData}
+                            />
 
-                    <h3>Primary Field</h3>
-                    <Field
-                        label="Primary Label"
-                        path="eventTicket.primaryFields.0.label"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Primary Value"
-                        path="eventTicket.primaryFields.0.value"
-                        data={data}
-                        set={setData}
-                    />
+                            <h3>Primary Field</h3>
+                            <Field
+                                label="Primary Label"
+                                path="eventTicket.primaryFields.0.label"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Primary Value"
+                                path="eventTicket.primaryFields.0.value"
+                                data={data}
+                                set={setData}
+                            />
 
-                    <h3>Secondary Fields</h3>
-                    <Field
-                        label="Sec 1 Label"
-                        path="eventTicket.secondaryFields.0.label"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Sec 1 Value"
-                        path="eventTicket.secondaryFields.0.value"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Sec 2 Label"
-                        path="eventTicket.secondaryFields.1.label"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Sec 2 Value"
-                        path="eventTicket.secondaryFields.1.value"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Sec 2 Alignment"
-                        path="eventTicket.secondaryFields.1.textAlignment"
-                        data={data}
-                        set={setData}
-                    />
+                            <h3>Secondary Fields</h3>
+                            <Field
+                                label="Sec 1 Label"
+                                path="eventTicket.secondaryFields.0.label"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Sec 1 Value"
+                                path="eventTicket.secondaryFields.0.value"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Sec 2 Label"
+                                path="eventTicket.secondaryFields.1.label"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Sec 2 Value"
+                                path="eventTicket.secondaryFields.1.value"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Sec 2 Alignment"
+                                path="eventTicket.secondaryFields.1.textAlignment"
+                                data={data}
+                                set={setData}
+                            />
 
-                    <h3>Auxiliary Fields</h3>
-                    <Field
-                        label="Block"
-                        path="eventTicket.auxiliaryFields.0.value"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Row"
-                        path="eventTicket.auxiliaryFields.1.value"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Seat"
-                        path="eventTicket.auxiliaryFields.2.value"
-                        data={data}
-                        set={setData}
-                    />
+                            <h3>Auxiliary Fields</h3>
+                            <Field
+                                label="Block"
+                                path="eventTicket.auxiliaryFields.0.value"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Row"
+                                path="eventTicket.auxiliaryFields.1.value"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Seat"
+                                path="eventTicket.auxiliaryFields.2.value"
+                                data={data}
+                                set={setData}
+                            />
 
-                    <h3>Barcode</h3>
-                    <Field
-                        label="Barcode Message"
-                        path="barcode.message"
-                        data={data}
-                        set={setData}
-                    />
-                    <Field
-                        label="Barcode AltText"
-                        path="barcode.altText"
-                        data={data}
-                        set={setData}
-                    />
+                            <h3>Barcode</h3>
+                            <Field
+                                label="Barcode Message"
+                                path="barcode.message"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Barcode AltText"
+                                path="barcode.altText"
+                                data={data}
+                                set={setData}
+                            />
 
-                    <button
-                        type="submit"
-                        disabled={saving}
-                        style={{ marginTop: 16, padding: '8px 16px', width: '100%' }}
-                    >
-                        {saving ? 'Saving…' : 'Save & Push'}
-                    </button>
-                </form>
-            )}
+                            <button
+                                type="submit"
+                                disabled={saving}
+                                style={{marginTop: 16, padding: '8px 16px', width: '100%'}}
+                            >
+                                {saving ? 'Saving…' : 'Save & Push'}
+                            </button>
+                        </form>
+                    )}
+                </div>
+
+            </div>
+            <PassPreview data={data}/>
         </div>
     );
 }
