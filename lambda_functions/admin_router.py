@@ -8,6 +8,7 @@ import csv
 import io
 import json
 import os
+import time
 
 ddb = boto3.resource('dynamodb')
 passes = ddb.Table(os.environ['TABLE_PASSES'])
@@ -35,7 +36,7 @@ def lambda_handler(event, _ctx):
     if p == '/admin/bulkSend':
         lambda_c.invoke(FunctionName=BULK, InvocationType='Event', Payload=b'{}')
         return {"statusCode": 202, "body": "bulk send triggered"}
-    return {"statusCode": 404}
+
     if p.startswith('/admin/passes/') and met == 'GET':
         serial = p.split('/')[-1]
         return _get_pass(serial)
@@ -44,6 +45,8 @@ def lambda_handler(event, _ctx):
         serial = p.split('/')[-1]
         body = json.loads(event['body'])
         return _update_pass(serial, body.get('passData'))
+
+    return {"statusCode": 404}
 
 
 def _metrics():
