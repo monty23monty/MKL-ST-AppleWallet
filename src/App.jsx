@@ -1,7 +1,7 @@
 // App.jsx / App.tsx
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { signOut } from 'aws-amplify/auth';           // 👈 modular Auth
-import { withAuthenticator } from '@aws-amplify/ui-react';
+import {Navigate, Route, Routes} from 'react-router-dom';
+import {signOut} from 'aws-amplify/auth'; // 👈 modular Auth
+import {withAuthenticator} from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
@@ -19,13 +19,14 @@ function App() {
 
     return (
         <div className="container">
-            <Navbar onSignOut={handleSignOut} />
+            <Navbar onSignOut={handleSignOut}/>
             <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/customers" element={<Customers />} />
-                <Route path="/create-pass" element={<CreatePass />} />
-                <Route path="/update-pass" element={<UpdatePass />} />
+                <Route path="/" element={<Navigate to="/dashboard" replace/>}/>
+                <Route path="/dashboard" element={<Dashboard/>}/>
+                <Route path="/customers" element={<Customers/>}/>
+                <Route path="/create-pass" element={<CreatePass/>}/>
+                <Route path="/update-pass" element={<UpdatePass/>}/>
+                <Route path="/update-pass/:serial" element={<UpdatePass/>}/>
             </Routes>
         </div>
     );

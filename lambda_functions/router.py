@@ -4,9 +4,10 @@ import logging
 import os
 import re
 import time
+from decimal import Decimal
 
 import boto3
-from boto3.dynamodb.conditions import Attr
+from boto3.dynamodb.conditions import Attr, Key
 
 # ─── setup ─────────────────────────────────────────────────────────────────────
 logger = logging.getLogger()
@@ -68,43 +69,67 @@ def _maybe_register(event, raw):
         'pushToken':               push_token,
         'updatedAt':               now
     })
+
+    passes.update_item(
+            Key={'serialNumber': serial},
+            UpdateExpression="""
+                SET emailStatus = :s,
+                    installedAt = if_not_exists(installedAt, :t),
+                    lastModified = :t
+            """,
+            ExpressionAttributeValues={
+                ':s': 'installed',
+                ':t': now
+            }
+        )
+
     logger.info("REGISTERED device=%s passType=%s serial=%s", device_id, pass_type, serial)
     return {'statusCode': 201}
 
 
 # ─── list registrations (GET) ──────────────────────────────────────────────────
-def _maybe_list_regs(event, raw):
+def _maybe_list_regs(event, raw: str):
     if event["requestContext"]["http"]["method"] != "GET":
         return None
 
-    parts = raw.split("?", 1)[0].split("/")
-    if len(parts) != 6 or parts[2] != "devices" or parts[4] != "registrations":
+    # /v1/devices/{deviceLID}/registrations/{passTypeIdentifier}
+    m = re.fullmatch(
+        r"/v1/devices/([^/]+)/registrations/([^/]+)", raw.split("?", 1)[0]
+    )
+    if not m:
         return None
 
-    device_id = parts[3]
-    pass_type = parts[5]
+    device_id, pass_type = m.groups()
 
-    # optional ?passesUpdatedSince= epoch-ms
-    qs  = event.get("queryStringParameters") or {}
-    since_ms = int(qs["passesUpdatedSince"]) if qs.get("passesUpdatedSince", "").isdigit() else 0
+    qs = event.get("queryStringParameters") or {}
+    since_ms = int(qs.get("passesUpdatedSince", "0") or "0")
 
-    # query on partition key only, then filter in memory
-    resp  = regs.query(
-        KeyConditionExpression=boto3.dynamodb.conditions.Key('deviceLibraryIdentifier').eq(device_id)
+    # The table HASH key is deviceLibraryIdentifier.
+    # We *can* query the base table, but using the GSI `deviceIdx`
+    # saves RCUs if the table ever grows large.
+    resp = regs.query(
+        IndexName="deviceIdx",  # deviceLibraryIdentifier HASH, serialNumber RANGE
+        KeyConditionExpression=Key("deviceLibraryIdentifier").eq(device_id),
+        FilterExpression=(
+            Attr("passTypeIdentifier").eq(pass_type) &
+            Attr("updatedAt").gte(Decimal(str(since_ms)))
+        ),
+        ProjectionExpression="serialNumber, updatedAt",
     )
-    items = [i for i in resp["Items"] if i.get("passTypeIdentifier") == pass_type]
 
-    if since_ms:
-        items = [i for i in items if i.get("updatedAt", 0) > since_ms]
-
+    items = resp.get("Items", [])
     if not items:
         return {"statusCode": 204}
 
     serials   = [i["serialNumber"] for i in items]
-    last_upd  = max(i.get("updatedAt", 0) for i in items)
-    return {"statusCode": 200,
-            "body": json.dumps({"serialNumbers": serials,
-                                "lastUpdated":  last_upd})}
+    last_upd  = max(int(i.get("updatedAt", 0)) for i in items)
+    return {
+        "statusCode": 200,
+        "body": json.dumps({
+            "serialNumbers": serials,
+            "lastUpdated":   str(last_upd)
+        }),
+    }
 
 def _maybe_unregister(event, raw):
     if event["requestContext"]["http"]["method"] != "DELETE":
