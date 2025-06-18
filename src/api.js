@@ -1,22 +1,22 @@
 // src/api.js
-import { get, post } from 'aws-amplify/api';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import {get, post} from 'aws-amplify/api';
+import {fetchAuthSession} from 'aws-amplify/auth';
 
 // Helper to fetch the current user's ID token (JWT)
 async function getAuthHeaders() {
     const session = await fetchAuthSession();
     const idToken = session.tokens?.idToken?.toString();
     if (!idToken) throw new Error('User is not signed in');
-    return { Authorization: idToken };
+    return {Authorization: idToken};
 }
 
 /** GET  https://…/admin/metrics */
 export async function getMetrics() {
     const headers = await getAuthHeaders();
-    const { body } = await get({
+    const {body} = await get({
         apiName: 'wallet',
         path: '/admin/metrics',
-        options: { headers },
+        options: {headers},
     }).response;
 
     return body.json();
@@ -25,10 +25,10 @@ export async function getMetrics() {
 /** GET  https://…/admin/passes */
 export async function listPasses() {
     const headers = await getAuthHeaders();
-    const { body } = await get({
+    const {body} = await get({
         apiName: 'wallet',
         path: '/admin/passes',
-        options: { headers },
+        options: {headers},
     }).response;
 
     return body.json();
@@ -37,10 +37,10 @@ export async function listPasses() {
 /** POST https://…/admin/bulkSend   (empty JSON body) */
 export async function bulkSend() {
     const headers = await getAuthHeaders();
-    const { body } = await post({
+    const {body} = await post({
         apiName: 'wallet',
         path: '/admin/bulkSend',
-        options: { headers, body: {} },
+        options: {headers, body: {}},
     }).response;
 
     return body.json();
@@ -52,7 +52,7 @@ export async function resendPass(serial) {
     await post({
         apiName: 'wallet',
         path: `/admin/resend/${serial}`,
-        options: { headers, body: {} },
+        options: {headers, body: {}},
     }).response;
 }
 
@@ -62,11 +62,11 @@ export async function createPass(body) {
     const idToken = session.tokens?.idToken?.toString();
     if (!idToken) throw new Error('User is not signed in');
 
-    const { body: responseBody } = await post({
+    const {body: responseBody} = await post({
         apiName: 'wallet',
         path: '/createPass',
         options: {
-            headers: { Authorization: idToken },
+            headers: {Authorization: idToken},
             body,
         },
     }).response;
@@ -76,10 +76,10 @@ export async function createPass(body) {
 
 export async function getPassData(serial) {
     const headers = await getAuthHeaders();
-    const { body } = await get({
+    const {body} = await get({
         apiName: 'wallet',
         path: `/admin/passes/${serial}`,
-        options: { headers },
+        options: {headers},
     }).response;
     return body.json();
 }
@@ -87,12 +87,12 @@ export async function getPassData(serial) {
 /** PUT  /admin/passes/{serial} */
 export async function updatePassData(serial, passData) {
     const headers = await getAuthHeaders();
-    const { body } = await post({
+    const {body} = await post({
         apiName: 'wallet',
         path: `/admin/passes/${serial}`,
         options: {
             headers,
-            body: { passData },
+            body: {passData},
         },
     }).response;
     return body.json();

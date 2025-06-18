@@ -1,6 +1,12 @@
 import {useEffect, useState} from 'react';
 import {getPassData, listPasses, updatePassData} from '../api';
+import {useNavigate, useParams} from 'react-router-dom';
+import HoverCard from "../components/HoverCard.jsx";
 import PassPreview from "../components/PassPreview.jsx";
+
+const PREVIEW_MARGIN = 3;   // gap between cursor and preview
+const PREVIEW_WIDTH = 260;  // real width of <PassPreview>
+const PREVIEW_HEIGHT = 160;  // real height of <PassPreview>
 
 function Field({label, type = 'text', path, data, set}) {
     const value = path.split('.').reduce((o, k) => {
@@ -67,11 +73,28 @@ function toIsoZ(local) {
 }
 
 export default function UpdatePass() {
+    const {serial} = useParams();
+    const navigate = useNavigate();
+
     const [passes, setPasses] = useState([]);
-    const [selected, setSelected] = useState('');
+    const [selected, setSelected] = useState(serial || '');
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [sortKey, setSortKey] = useState('firstName');
+    const [sortDir, setSortDir] = useState('asc');
+    const [preview, setPreview] = useState(null); // {data,x,y,fade}
+    const [hoverTimer, setHoverTimer] = useState(null);
+
+    const [searchName, setSearchName] = useState('');
+    const [searchBlock, setSearchBlock] = useState('');
+    const [searchRow, setSearchRow] = useState('');
+    const [searchSeat, setSearchSeat] = useState('');
+
+
+    useEffect(() => {
+        setSelected(serial || '');
+    }, [serial]);
 
     useEffect(() => {
         setLoading(true);
@@ -139,26 +162,175 @@ export default function UpdatePass() {
 
     if (loading) return <p>Loading…</p>;
 
+    const filtered = passes
+        .filter(p => {
+            const pd = JSON.parse(p.passData || '{}');
+            const name = `${pd.firstName || ''} ${pd.lastName || ''}`.toLowerCase();
+            const block = (pd.eventTicket?.auxiliaryFields?.[0]?.value || '')
+                .toString().toLowerCase();
+            const row = (pd.eventTicket?.auxiliaryFields?.[1]?.value || '')
+                .toString().toLowerCase();
+            const seat = (pd.eventTicket?.auxiliaryFields?.[2]?.value || '')
+                .toString().toLowerCase();
+
+            return name.includes(searchName.toLowerCase()) &&
+                block.includes(searchBlock.toLowerCase()) &&
+                row.includes(searchRow.toLowerCase()) &&
+                seat.includes(searchSeat.toLowerCase());
+        })
+        .sort((a, b) => {
+            const pa = JSON.parse(a.passData || '{}');
+            const pb = JSON.parse(b.passData || '{}');
+            const va = (pa[sortKey] || '').toString().toLowerCase();
+            const vb = (pb[sortKey] || '').toString().toLowerCase();
+            if (va < vb) return sortDir === 'asc' ? -1 : 1;
+            if (va > vb) return sortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+    const startHover = (pass, event) => {
+        clearTimeout(hoverTimer);
+
+        const {clientX, clientY} = event;
+        const placeLeft =
+            clientX + PREVIEW_MARGIN + PREVIEW_WIDTH > window.innerWidth;
+
+        const x = placeLeft
+            ? clientX - PREVIEW_MARGIN - PREVIEW_WIDTH
+            : clientX + PREVIEW_MARGIN;
+
+        const y = Math.min(
+            clientY,
+            window.innerHeight - PREVIEW_HEIGHT - PREVIEW_MARGIN
+        );
+
+        const timer = setTimeout(() => {
+            /* 1️⃣  mount hidden card … */
+            setPreview({
+                data: JSON.parse(pass.passData || '{}'),
+                x, y,
+                show: false
+            });
+
+            /* 2️⃣  … next frame → toggle visible (triggers fade-in) */
+            requestAnimationFrame(() =>
+                setPreview(p => p && {...p, show: true})
+            );
+        }, 300);
+
+        setHoverTimer(timer);
+    };
+
+    const stopHover = () => {
+        clearTimeout(hoverTimer);
+        setPreview(p => p && {...p, show: false});
+    };
+
+    if (!selected) {
+        return (
+            <div style={{position: 'relative'}}>
+                <h2>Update a Pass</h2>
+
+                <div style={{display: 'flex', gap: 8, marginBottom: 8}}>
+                    <input
+                        type="text" placeholder="Name"
+                        value={searchName} onChange={e => setSearchName(e.target.value)}
+                        style={{flex: 2, padding: 6}}
+                    />
+                    <input
+                        type="text" placeholder="Block"
+                        value={searchBlock} onChange={e => setSearchBlock(e.target.value)}
+                        style={{flex: 1, padding: 6}}
+                    />
+                    <input
+                        type="text" placeholder="Row"
+                        value={searchRow} onChange={e => setSearchRow(e.target.value)}
+                        style={{width: 60, padding: 6}}
+                    />
+                    <input
+                        type="text" placeholder="Seat"
+                        value={searchSeat} onChange={e => setSearchSeat(e.target.value)}
+                        style={{width: 60, padding: 6}}
+                    />
+                </div>
+
+                <table style={{width: '100%', borderCollapse: 'collapse'}}>
+                    <thead>
+                    <tr>
+                        {['First Name', 'Last Name', 'Email',
+                            'Block', 'Row', 'Seat', 'Type'].map(k => (
+                            <th
+                                key={k}
+                                style={{
+                                    cursor: 'pointer',
+                                    borderBottom: '1px solid #ccc',
+                                    textAlign: 'left'
+                                }}
+                                onClick={() => {
+                                    if (sortKey === k) {
+                                        setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                                    } else {
+                                        setSortKey(k);
+                                        setSortDir('asc');
+                                    }
+                                }}
+                            >
+                                {k}
+                            </th>
+                        ))}
+                        <th/>
+                    </tr>
+                    </thead>
+
+                    <tbody>
+                    {filtered.map(p => {
+                        const pd = JSON.parse(p.passData || '{}');
+                        return (
+                            <tr
+                                key={p.serialNumber}
+                                onMouseEnter={e => startHover(p, e)}
+                                onMouseLeave={stopHover}
+                                style={{borderBottom: '1px solid #eee'}}
+                            >
+                                <td>{pd.firstName}</td>
+                                <td>{pd.lastName}</td>
+                                <td>{p.email}</td>
+                                <td>{pd.eventTicket?.auxiliaryFields?.[0]?.value}</td>
+                                <td>{pd.eventTicket?.auxiliaryFields?.[1]?.value}</td>
+                                <td>{pd.eventTicket?.auxiliaryFields?.[2]?.value}</td>
+                                <td>{pd.eventTicket?.secondaryFields?.[1]?.value}</td>
+                                <td>
+                                    <button
+                                        onClick={() =>
+                                            navigate(`/update-pass/${p.serialNumber}`)
+                                        }
+                                    >
+                                        Edit
+                                    </button>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                    </tbody>
+                </table>
+
+                {preview && (
+                    <HoverCard
+                        data={preview.data}
+                        top={preview.y}
+                        left={preview.x}
+                        show={preview.show}
+                    />
+                )}
+            </div>
+        );
+    }
+
     return (
         <div style={{display: 'flex', alignItems: 'flex-start', gap: 40}}>
             <div style={{flex: 1}}>
                 <div>
                     <h2>Update a Pass</h2>
-                    <label>
-                        Choose pass:
-                        <select
-                            value={selected}
-                            onChange={e => setSelected(e.target.value)}
-                            style={{marginLeft: 8}}
-                        >
-                            <option value="">— select —</option>
-                            {passes.map(p => (
-                                <option key={p.serialNumber} value={p.serialNumber}>
-                                    {p.email} | {p.serialNumber}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
 
                     {data && (
                         <form onSubmit={handleSubmit} style={{marginTop: 20}}>
