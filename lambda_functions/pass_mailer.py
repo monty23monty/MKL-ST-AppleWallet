@@ -49,7 +49,7 @@ def lambda_handler(event, _ctx):
         Key={'serialNumber': serial},
         UpdateExpression="SET emailStatus = :s, lastModified = :t",
         ExpressionAttributeValues={
-            ':s': 'queued',
+            ':s': 'Mailed',
             ':t': int(time.time() * 1000)
         }
     )
