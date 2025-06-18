@@ -26,6 +26,7 @@ function App() {
                 <Route path="/customers" element={<Customers />} />
                 <Route path="/create-pass" element={<CreatePass />} />
                 <Route path="/update-pass" element={<UpdatePass />} />
+                <Route path="/update-pass/:serial" element={<UpdatePass />} />
             </Routes>
         </div>
     );
