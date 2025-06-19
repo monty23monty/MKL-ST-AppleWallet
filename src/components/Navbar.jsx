@@ -14,7 +14,7 @@ export default function Navbar({onSignOut}) {
                 <NavLink to="/create-pass">Create Pass</NavLink>
                 <NavLink to="/bulk-create">Bulk Create</NavLink>
                 <NavLink to="/update-pass">Update Pass</NavLink>
-
+                <NavLink to="/fixtures">Fixtures</NavLink>
                 <button onClick={onSignOut}>Sign&nbsp;out</button>
             </nav>
         </header>

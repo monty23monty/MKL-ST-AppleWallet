@@ -158,7 +158,7 @@ export default function UpdatePass() {
             requestAnimationFrame(() =>
                 setPreview(p => p && {...p, show: true})
             );
-        }, 300);
+        }, 1000);
         setHoverTimer(t);
     };
     const stopHover = () => {
