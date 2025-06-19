@@ -1,8 +1,9 @@
 // src/api.js
-import {get, post} from 'aws-amplify/api';
+import {del, get, post} from 'aws-amplify/api';
 import {fetchAuthSession} from 'aws-amplify/auth';
 
-// Helper to fetch the current user's ID token (JWT)
+/* ── helper ─────────────────────────────────────────── */
+
 async function getAuthHeaders() {
     const session = await fetchAuthSession();
     const idToken = session.tokens?.idToken?.toString();
@@ -10,68 +11,55 @@ async function getAuthHeaders() {
     return {Authorization: idToken};
 }
 
-/** GET  https://…/admin/metrics */
+/* ── metrics & passes ───────────────────────────────── */
+
 export async function getMetrics() {
     const headers = await getAuthHeaders();
     const {body} = await get({
         apiName: 'wallet',
         path: '/admin/metrics',
-        options: {headers},
+        options: {headers}
     }).response;
-
     return body.json();
 }
 
-/** GET  https://…/admin/passes */
 export async function listPasses() {
     const headers = await getAuthHeaders();
     const {body} = await get({
         apiName: 'wallet',
         path: '/admin/passes',
-        options: {headers},
+        options: {headers}
     }).response;
-
     return body.json();
 }
 
-/** POST https://…/admin/bulkSend   (empty JSON body) */
 export async function bulkSend() {
     const headers = await getAuthHeaders();
     const {body} = await post({
         apiName: 'wallet',
         path: '/admin/bulkSend',
-        options: {headers, body: {}},
+        options: {headers, body: {}}
     }).response;
-
     return body.json();
 }
 
-/** POST https://…/admin/resend/{serial}   (empty JSON body) */
 export async function resendPass(serial) {
     const headers = await getAuthHeaders();
     await post({
         apiName: 'wallet',
         path: `/admin/resend/${serial}`,
-        options: {headers, body: {}},
+        options: {headers, body: {}}
     }).response;
 }
 
-// ⬆ existing imports & calls
 export async function createPass(body) {
-    const session = await fetchAuthSession();
-    const idToken = session.tokens?.idToken?.toString();
-    if (!idToken) throw new Error('User is not signed in');
-
-    const {body: responseBody} = await post({
+    const headers = await getAuthHeaders();
+    const {body: resBody} = await post({
         apiName: 'wallet',
         path: '/createPass',
-        options: {
-            headers: {Authorization: idToken},
-            body,
-        },
+        options: {headers, body}
     }).response;
-
-    return responseBody.json();
+    return resBody.json();
 }
 
 export async function getPassData(serial) {
@@ -79,21 +67,74 @@ export async function getPassData(serial) {
     const {body} = await get({
         apiName: 'wallet',
         path: `/admin/passes/${serial}`,
-        options: {headers},
+        options: {headers}
     }).response;
     return body.json();
 }
 
-/** PUT  /admin/passes/{serial} */
 export async function updatePassData(serial, passData) {
     const headers = await getAuthHeaders();
     const {body} = await post({
         apiName: 'wallet',
         path: `/admin/passes/${serial}`,
-        options: {
-            headers,
-            body: {passData},
-        },
+        options: {headers, body: {passData}}
     }).response;
     return body.json();
+}
+
+/* ── mail helpers ───────────────────────────────────── */
+
+export async function mailPending() {
+    const headers = await getAuthHeaders();
+    const {body} = await post({
+        apiName: 'wallet',
+        path: '/admin/bulkSend',
+        options: {headers, body: {}}
+    }).response;
+    return body.text();          // keeps the original string result
+}
+
+export async function pushFixture(payload) {
+    const headers = await getAuthHeaders();
+    const {body} = await post({
+        apiName: 'wallet',
+        path: '/admin/bulkFixture',
+        options: {headers, body: payload}
+    }).response;
+    return body.text();
+}
+
+/* ── fixtures CRUD ─────────────────────────────────── */
+
+export async function listFixtures() {
+    const headers = await getAuthHeaders();
+    const {body} = await get({
+        apiName: 'wallet',
+        path: '/admin/fixtures',
+        options: {headers}
+    }).response;
+    return body.json();          // [{fixtureId, gameDate, opponent}]
+}
+
+export async function storeFixtures(arr) {              // arr = [{gameDate, opponent}]
+    const headers = await getAuthHeaders();
+    const fixtures = arr.map(f => ({
+        fixtureId: f.fixtureId || `${f.gameDate}#${f.opponent}`,
+        gameDate: f.gameDate,
+        opponent: f.opponent
+    }));
+    await post({
+        apiName: 'wallet',
+        path: '/admin/fixtures',
+        options: {headers, body: fixtures}
+    }).response;
+}
+
+export async function deleteFixture(fixtureId) {
+    const headers = await getAuthHeaders();
+    await del({
+        apiName: 'wallet',
+        path: `/admin/fixtures/${encodeURIComponent(fixtureId)}`,
+        options: {headers}
+    }).response;
 }
