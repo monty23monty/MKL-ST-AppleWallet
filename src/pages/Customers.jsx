@@ -18,9 +18,19 @@ export default function Customers() {
     const [sStatus, setSStatus] = useState('');
 
     /** refresh helper */
-    const refresh = () => listPasses().then(setRows);
+    useEffect(() => {
+        async function fetchData() {
+            const data = await listPasses();
+            setRows(data);
+        }
 
-    useEffect(refresh, []);
+        fetchData();
+    }, []);
+
+    const refresh = async () => {
+        const data = await listPasses();
+        setRows(data);
+    };
 
     /* ── filtering ─────────────────────────────────────────────── */
     const filtered = rows.filter(r => {

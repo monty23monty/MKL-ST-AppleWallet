@@ -3,12 +3,20 @@ import {deleteFixture, listFixtures, pushFixture, storeFixtures} from '../api';
 
 const toISO = (d, t) => {
     if (!d || !t) throw new Error(`Invalid date/time: "${d}" "${t}"`);
-    // d = '09/09/2023', t = '19:00'
-    const [day, month, year] = d.split('/');
+    let year, month, day;
+    // Handle both "YYYY-MM-DD" and "DD/MM/YYYY"
+    if (d.includes('-')) {
+        // HTML date input: "2025-06-21"
+        [year, month, day] = d.split('-');
+    } else if (d.includes('/')) {
+        // CSV import: "09/09/2023"
+        [day, month, year] = d.split('/');
+    } else {
+        throw new Error(`Unrecognized date format: "${d}"`);
+    }
     const [hour, minute] = t.split(':');
-    if (!day || !month || !year || !hour || !minute)
+    if (!year || !month || !day || !hour || !minute)
         throw new Error(`Bad date/time format: "${d}" "${t}"`);
-    // Note: month - 1 because JS months are 0-based
     const dt = new Date(
         Number(year),
         Number(month) - 1,
@@ -19,6 +27,7 @@ const toISO = (d, t) => {
     if (isNaN(dt.getTime())) throw new Error(`Could not parse date/time: "${d}" "${t}"`);
     return dt.toISOString();
 };
+
 const local = iso => new Date(iso).toLocaleString();
 
 export default function Fixtures() {
