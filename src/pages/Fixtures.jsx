@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {deleteFixture, listFixtures, pushFixture, storeFixtures} from '../api';
+import { useAuth } from 'react-oidc-context';
 
 const toISO = (d, t) => {
     if (!d || !t) throw new Error(`Invalid date/time: "${d}" "${t}"`);
@@ -22,6 +23,8 @@ const toISO = (d, t) => {
 const local = iso => new Date(iso).toLocaleString();
 
 export default function Fixtures() {
+    const auth = useAuth();
+    const accessToken = auth.user?.access_token;
     const [rows, setRows] = useState([]);
     const [date, setDate] = useState('');
     const [time, setTime] = useState('');
@@ -30,13 +33,14 @@ export default function Fixtures() {
 
     /* initial fetch */
     useEffect(() => {
-        listFixtures().then(setRows);
-    }, []);
+        if (!accessToken) return;
+        listFixtures(accessToken).then(setRows);
+    }, [accessToken]);
 
     /* store helper and refresh */
     const save = async arr => {
-        await storeFixtures(arr);
-        const updated = await listFixtures();
+        await storeFixtures(arr, accessToken);
+        const updated = await listFixtures(accessToken);
         setRows(updated);
     };
 
@@ -72,7 +76,7 @@ export default function Fixtures() {
     const del = async f => {
         if (!window.confirm(`Delete fixture ${f.opponent} – ${local(f.gameDate)} ?`))
             return;
-        await deleteFixture(f.fixtureId);
+        await deleteFixture(f.fixtureId, accessToken);
         setRows(rows.filter(r => r.fixtureId !== f.fixtureId));
     };
 
@@ -81,7 +85,7 @@ export default function Fixtures() {
             return;
         setBusy(true);
         try {
-            await pushFixture({datetime: f.gameDate, opponent: f.opponent});
+            await pushFixture({datetime: f.gameDate, opponent: f.opponent}, accessToken);
             alert('Update queued – passes will refresh soon.');
         } catch (e) {
             alert(e.message || 'Failed');

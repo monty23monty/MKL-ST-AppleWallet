@@ -3,6 +3,7 @@ import {getPassData, listPasses, updatePassData} from '../api';
 import {useNavigate, useParams} from 'react-router-dom';
 import HoverCard from '../components/HoverCard.jsx';
 import PassPreview from '../components/PassPreview.jsx';
+import { useAuth } from 'react-oidc-context';
 
 
 /* ───── hover-card constants ─────────────────────────────────── */
@@ -59,6 +60,8 @@ const toIsoZ = local => new Date(local).toISOString();
 /* ─────────────────────────────────────────────────────────────── */
 
 export default function UpdatePass() {
+    const auth = useAuth();
+    const accessToken = auth.user?.access_token;
     const {serial} = useParams();
     const navigate = useNavigate();
 
@@ -89,11 +92,12 @@ export default function UpdatePass() {
     /* ───── load list once ───────────────────────────────────────── */
     useEffect(() => {
         setLoading(true);
-        listPasses()
+        if (!accessToken) return;
+        listPasses(accessToken)
             .then(setPasses)
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, []);
+    }, [accessToken]);
 
     /* ───── respond to URL change ────────────────────────────────── */
     useEffect(() => {
@@ -107,7 +111,8 @@ export default function UpdatePass() {
             return;
         }
         setLoading(true);
-        getPassData(selected)
+        if (!accessToken) return;
+        getPassData(selected, accessToken)
             .then(pd => {
                 setData({
                     ...pd,
@@ -138,7 +143,7 @@ export default function UpdatePass() {
             })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [selected]);
+    }, [selected, accessToken]);
 
     /* ───── hover helpers (unchanged) ───────────────────────────── */
     const startHover = (pass, evt) => {
@@ -207,7 +212,7 @@ export default function UpdatePass() {
         };
 
         try {
-            await updatePassData(selected, pd);
+            await updatePassData(selected, pd, accessToken);
             alert('Pass updated and pushed!');
         } catch (err) {
             console.error(err);
