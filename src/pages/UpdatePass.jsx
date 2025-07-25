@@ -1,19 +1,24 @@
-import {useEffect, useMemo, useState} from 'react'; // already in React ≥18, but add if missing
-import {getPassData, listPasses, updatePassData} from '../api';
-import {useNavigate, useParams} from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from 'react-oidc-context';
+import Editor from '@monaco-editor/react';
+import {
+    getPassData,
+    listPasses,
+    updatePassData,
+    listPassAssets
+} from '../api';
 import HoverCard from '../components/HoverCard.jsx';
 import PassPreview from '../components/PassPreview.jsx';
-import { useAuth } from 'react-oidc-context';
 
-
-/* ───── hover-card constants ─────────────────────────────────── */
+/* ── constants ───────────────────────────────────────────────── */
 const PREVIEW_MARGIN = 3;
-const PREVIEW_WIDTH = 260;
+const PREVIEW_WIDTH  = 260;
 const PREVIEW_HEIGHT = 160;
+/* ────────────────────────────────────────────────────────────── */
 
-/* ─────────────────────────────────────────────────────────────── */
-
-function Field({label, type = 'text', path, data, set}) {
+/* ── Field component ─────────────────────────────────────────── */
+function Field({ label, type = 'text', path, data, set }) {
     const value = path.split('.').reduce((o, k) => {
         if (o == null) return '';
         return Array.isArray(o) ? o[Number(k)] : o[k];
@@ -21,29 +26,30 @@ function Field({label, type = 'text', path, data, set}) {
 
     const onChange = e => {
         const clone = structuredClone(data);
-        const segs = path.split('.');
-        let cur = clone;
+        const segs  = path.split('.');
+        let cur     = clone;
         while (segs.length > 1) cur = cur[segs.shift()];
         cur[segs[0]] = e.target.value;
         set(clone);
     };
 
     return (
-        <div style={{marginBottom: 12}}>
-            <label style={{display: 'block', fontSize: 12, marginBottom: 4}}>
+        <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
                 {label}
             </label>
             <input
                 type={type}
                 value={value}
                 onChange={onChange}
-                style={{width: '100%', padding: 6, boxSizing: 'border-box'}}
+                style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
             />
         </div>
     );
 }
+/* ────────────────────────────────────────────────────────────── */
 
-/* ───── helpers ──────────────────────────────────────────────── */
+/* ── helper functions ───────────────────────────────────────── */
 const rgbToHex = rgb => {
     const [r, g, b] = rgb.replace(/[^0-9,]/g, '').split(',').map(Number);
     return (
@@ -55,271 +61,209 @@ const hexToRgb = h => {
     const [r, g, b] = h.slice(1).match(/.{2}/g).map(x => parseInt(x, 16));
     return `rgb(${r},${g},${b})`;
 };
-const isoToLocal = z => new Date(z).toISOString().slice(0, 16);
-const toIsoZ = local => new Date(local).toISOString();
-/* ─────────────────────────────────────────────────────────────── */
+const isoToLocal = z     => new Date(z).toISOString().slice(0, 16);
+const toIsoZ     = local => new Date(local).toISOString();
+/* ────────────────────────────────────────────────────────────── */
 
 export default function UpdatePass() {
-    const auth = useAuth();
-    const accessToken = auth.user?.access_token;
-    const {serial} = useParams();
-    const navigate = useNavigate();
+    // DEBUG: log on every render
+    console.log('UpdatePass render', { selected: useParams().serial, rawMode: undefined });
 
-    const [passes, setPasses] = useState([]);
-    const [selected, setSelected] = useState(serial || '');
-    const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
+    const auth        = useAuth();
+    const token       = auth.user?.access_token;
+    const { serial }  = useParams();
+    const navigate    = useNavigate();
 
-    /* search boxes */
-    const [searchName, setSearchName] = useState('');
-    const [searchBlock, setSearchBlock] = useState('');
-    const [searchRow, setSearchRow] = useState('');
-    const [searchSeat, setSearchSeat] = useState('');
+    const [passes,     setPasses]     = useState([]);
+    const [selected,   setSelected]   = useState(serial || '');
+    const [data,       setData]       = useState(null);
+    const [loading,    setLoading]    = useState(false);
+    const [saving,     setSaving]     = useState(false);
 
-    const [sortKey, setSortKey] = useState('firstName');
-    const [sortDir, setSortDir] = useState('asc');
+    const [rawMode,    setRawMode]    = useState(false);
+    const [rawJson,    setRawJson]    = useState('{}');
+    const [rawFiles,   setRawFiles]   = useState({});
+    const [assetList,  setAssetList]  = useState([]);
 
-    /* hover preview */
-    const [preview, setPreview] = useState(null);
+    const [preview,    setPreview]    = useState(null);
     const [hoverTimer, setHoverTimer] = useState(null);
 
-    /* standing toggle state */
-    const [isStanding, setIsStanding] = useState(false);
-    const [standingNumber, setStandingNumber] = useState('');
-
-
-    /* ───── load list once ───────────────────────────────────────── */
+    // 1) Load all passes
     useEffect(() => {
         setLoading(true);
-        if (!accessToken) return;
-        listPasses(accessToken)
+        if (!token) return;
+        listPasses(token)
             .then(setPasses)
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [accessToken]);
+    }, [token]);
 
-    /* ───── respond to URL change ────────────────────────────────── */
+    // 2) Respond to URL change
     useEffect(() => {
         setSelected(serial || '');
     }, [serial]);
 
-    /* ───── fetch selected pass ─────────────────────────────────── */
+    // 3) Fetch passData when `selected` changes
     useEffect(() => {
         if (!selected) {
             setData(null);
             return;
         }
         setLoading(true);
-        if (!accessToken) return;
-        getPassData(selected, accessToken)
+        getPassData(selected, token)
             .then(pd => {
                 setData({
                     ...pd,
                     backgroundColor: rgbToHex(pd.backgroundColor),
                     foregroundColor: rgbToHex(pd.foregroundColor),
-                    labelColor: rgbToHex(pd.labelColor),
-                    relevantDate: isoToLocal(pd.relevantDate),
+                    labelColor:      rgbToHex(pd.labelColor),
+                    relevantDate:    isoToLocal(pd.relevantDate),
                     eventTicket: {
                         ...pd.eventTicket,
                         headerFields: pd.eventTicket.headerFields.map(h => ({
-                            ...h, value: isoToLocal(h.value)
+                            ...h,
+                            value: isoToLocal(h.value)
                         }))
                     }
                 });
-
-                /* detect standing */
-                const aux = pd.eventTicket?.auxiliaryFields || [];
-                const s = aux.find(a =>
-                    (a.label || '').toUpperCase() === 'STANDING' || a.key === 'standing'
-                );
-                if (s) {
-                    setIsStanding(true);
-                    setStandingNumber(s.value || '');
-                } else {
-                    setIsStanding(false);
-                    setStandingNumber('');
-                }
+                setRawJson(JSON.stringify(pd, null, 2));
+                setRawFiles({});
             })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [selected, accessToken]);
+    }, [selected, token]);
 
-    /* ───── hover helpers (unchanged) ───────────────────────────── */
+    // 4) Fetch assets only when we flip into rawMode
+    useEffect(() => {
+        if (rawMode && selected) {
+            listPassAssets(selected, token)
+                .then(setAssetList)
+                .catch(console.error);
+        }
+    }, [rawMode, selected, token]);
+
+    // Hover handlers
     const startHover = (pass, evt) => {
         clearTimeout(hoverTimer);
-        const {clientX, clientY} = evt;
+        const { clientX, clientY } = evt;
         const left = clientX + PREVIEW_MARGIN + PREVIEW_WIDTH > window.innerWidth;
-        const x = left
+        const x    = left
             ? clientX - PREVIEW_MARGIN - PREVIEW_WIDTH
             : clientX + PREVIEW_MARGIN;
-        const y = Math.min(
-            clientY,
-            window.innerHeight - PREVIEW_HEIGHT - PREVIEW_MARGIN
-        );
-
+        const y = Math.min(clientY, window.innerHeight - PREVIEW_HEIGHT - PREVIEW_MARGIN);
         const t = setTimeout(() => {
-            setPreview({data: JSON.parse(pass.passData || '{}'), x, y, show: false});
-            requestAnimationFrame(() =>
-                setPreview(p => p && {...p, show: true})
-            );
-        }, 1000);
+            setPreview({ data: JSON.parse(pass.passData || '{}'), x, y, show: false });
+            requestAnimationFrame(() => setPreview(p => p && { ...p, show: true }));
+        }, 800);
         setHoverTimer(t);
     };
     const stopHover = () => {
         clearTimeout(hoverTimer);
-        setPreview(p => p && {...p, show: false});
+        setPreview(p => p && { ...p, show: false });
     };
 
-    /* live version of data for the preview */
-    const previewData = useMemo(() => {
-        if (!data) return null;
+    // File → base64 helper
+    const fileToBase64 = file =>
+        new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onload  = () => res(reader.result.split(',')[1]);
+            reader.onerror = rej;
+            reader.readAsDataURL(file);
+        });
 
-        const clone = structuredClone(data);
-
-        if (isStanding) {
-            clone.eventTicket.auxiliaryFields = [
-                {key: 'standing', label: 'STANDING', value: standingNumber}
-            ];
-        }
-        // seated: just use whatever is in clone already
-        return clone;
-    }, [data, isStanding, standingNumber]);
-
-
-    /* ───── save handler ────────────────────────────────────────── */
-    const handleSubmit = async e => {
+    // Form submit
+    const handleFormSubmit = async e => {
         e.preventDefault();
         setSaving(true);
-
         const pd = {
             ...data,
-            backgroundColor: hexToRgb(data.backgroundColor),
+            backgroundColor: rgbToHex(data.backgroundColor),
             foregroundColor: hexToRgb(data.foregroundColor),
-            labelColor: hexToRgb(data.labelColor),
-            relevantDate: toIsoZ(data.relevantDate),
+            labelColor:      hexToRgb(data.labelColor),
+            relevantDate:    toIsoZ(data.relevantDate),
             eventTicket: {
                 ...data.eventTicket,
                 headerFields: data.eventTicket.headerFields.map(h => ({
-                    ...h, value: toIsoZ(h.value)
+                    ...h,
+                    value: toIsoZ(h.value)
                 })),
-                auxiliaryFields: isStanding
-                    ? [
-                        {key: 'standing', label: 'STANDING', value: standingNumber}
-                    ]
-                    : data.eventTicket.auxiliaryFields
-            }
+                auxiliaryFields: data.eventTicket.auxiliaryFields
+            },
+            barcode: { ...data.barcode }
         };
-
         try {
-            await updatePassData(selected, pd, accessToken);
-            alert('Pass updated and pushed!');
+            await updatePassData(selected, pd, {}, token);
+            alert('Pass updated!');
+            setRawJson(JSON.stringify(pd, null, 2));
         } catch (err) {
             console.error(err);
-            alert('Failed to update: ' + err.message);
+            alert('Failed: ' + err.message);
         } finally {
             setSaving(false);
         }
     };
 
+    // Raw submit
+    const handleRawSubmit = async () => {
+        let pd;
+        try {
+            pd = JSON.parse(rawJson);
+        } catch {
+            return alert('Invalid JSON');
+        }
+        const filesPayload = {};
+        for (const [fname, file] of Object.entries(rawFiles)) {
+            filesPayload[fname] = await fileToBase64(file);
+        }
+        setSaving(true);
+        try {
+            await updatePassData(selected, pd, filesPayload, token);
+            alert('Raw data + assets updated!');
+            setRawMode(false);
+            // reload into form
+            setData({
+                ...pd,
+                backgroundColor: rgbToHex(pd.backgroundColor),
+                foregroundColor: rgbToHex(pd.foregroundColor),
+                labelColor:      rgbToHex(pd.labelColor),
+                relevantDate:    isoToLocal(pd.relevantDate),
+                eventTicket: {
+                    ...pd.eventTicket,
+                    headerFields: pd.eventTicket.headerFields.map(h => ({
+                        ...h,
+                        value: isoToLocal(h.value)
+                    }))
+                }
+            });
+        } catch (err) {
+            console.error(err);
+            alert('Failed: ' + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // === RENDER LOGIC ===
     if (loading) return <p>Loading…</p>;
 
-    /* ───── filtered list (unchanged) ───────────────────────────── */
-    const filtered = passes
-        .filter(p => {
-            const pd = JSON.parse(p.passData || '{}');
-            const name = `${pd.firstName || ''} ${pd.lastName || ''}`.toLowerCase();
-            const block = (pd.eventTicket?.auxiliaryFields?.[0]?.value || '')
-                .toString().toLowerCase();
-            const row = (pd.eventTicket?.auxiliaryFields?.[1]?.value || '')
-                .toString().toLowerCase();
-            const seat = (pd.eventTicket?.auxiliaryFields?.[2]?.value || '')
-                .toString().toLowerCase();
-            return name.includes(searchName.toLowerCase()) &&
-                block.includes(searchBlock.toLowerCase()) &&
-                row.includes(searchRow.toLowerCase()) &&
-                seat.includes(searchSeat.toLowerCase());
-        })
-        .sort((a, b) => {
-            const pa = JSON.parse(a.passData || '{}'), pb = JSON.parse(b.passData || '{}');
-            const va = (pa[sortKey] || '').toString().toLowerCase();
-            const vb = (pb[sortKey] || '').toString().toLowerCase();
-            if (va < vb) return sortDir === 'asc' ? -1 : 1;
-            if (va > vb) return sortDir === 'asc' ? 1 : -1;
-            return 0;
-        });
-
-    /* ───── LIST SCREEN ─────────────────────────────────────────── */
+    // --- LIST SCREEN ---
     if (!selected) {
         return (
-            <div style={{position: 'relative'}}>
+            <div style={{ position: 'relative' }}>
                 <h2>Update a Pass</h2>
-
-                <div style={{display: 'flex', gap: 8, marginBottom: 8}}>
-                    <input type="text" placeholder="Name"
-                           value={searchName} onChange={e => setSearchName(e.target.value)}
-                           style={{flex: 2, padding: 6}}/>
-                    <input type="text" placeholder="Block"
-                           value={searchBlock} onChange={e => setSearchBlock(e.target.value)}
-                           style={{flex: 1, padding: 6}}/>
-                    <input type="text" placeholder="Row"
-                           value={searchRow} onChange={e => setSearchRow(e.target.value)}
-                           style={{width: 60, padding: 6}}/>
-                    <input type="text" placeholder="Seat"
-                           value={searchSeat} onChange={e => setSearchSeat(e.target.value)}
-                           style={{width: 60, padding: 6}}/>
-                </div>
-
-                <table style={{width: '100%', borderCollapse: 'collapse'}}>
-                    <thead>
-                    <tr>
-                        {['First Name', 'Last Name', 'Email',
-                            'Block', 'Row', 'Seat', 'Type'].map(k => (
-                            <th key={k}
-                                style={{
-                                    cursor: 'pointer',
-                                    borderBottom: '1px solid #ccc',
-                                    textAlign: 'left'
-                                }}
-                                onClick={() => {
-                                    if (sortKey === k) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-                                    else {
-                                        setSortKey(k);
-                                        setSortDir('asc');
-                                    }
-                                }}>
-                                {k}
-                            </th>
-                        ))}
-                        <th/>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {filtered.map(p => {
-                        const pd = JSON.parse(p.passData || '{}');
-                        return (
-                            <tr key={p.serialNumber}
+                <ul>
+                    {passes.map(p => (
+                        <li key={p.serialNumber}>
+                            <button
                                 onMouseEnter={e => startHover(p, e)}
                                 onMouseLeave={stopHover}
-                                style={{borderBottom: '1px solid #eee'}}>
-                                <td>{pd.firstName}</td>
-                                <td>{pd.lastName}</td>
-                                <td>{p.email}</td>
-                                <td>{pd.eventTicket?.auxiliaryFields?.[0]?.value}</td>
-                                <td>{pd.eventTicket?.auxiliaryFields?.[1]?.value}</td>
-                                <td>{pd.eventTicket?.auxiliaryFields?.[2]?.value}</td>
-                                <td>{pd.eventTicket?.secondaryFields?.[1]?.value}</td>
-                                <td>
-                                    <button onClick={() => navigate(`/update-pass/${p.serialNumber}`)}>
-                                        Edit
-                                    </button>
-                                </td>
-                            </tr>
-                        );
-                    })}
-                    </tbody>
-                </table>
-
+                                onClick={() => navigate(`/update-pass/${p.serialNumber}`)}
+                            >
+                                {p.serialNumber} — {p.email}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
                 {preview && (
                     <HoverCard
                         data={preview.data}
@@ -332,126 +276,299 @@ export default function UpdatePass() {
         );
     }
 
-    /* ───── EDIT SCREEN ─────────────────────────────────────────── */
+    // --- DATA-LOADED GUARD ---
+    if (data === null) {
+        return <p>Loading pass data…</p>;
+    }
+
+    // --- EDIT SCREEN ---
     return (
-        <div style={{display: 'flex', alignItems: 'flex-start', gap: 40}}>
-            <div style={{flex: 1}}>
-                <h2>Update a Pass</h2>
+        <div style={{ padding: 20 }}>
+            <h2>Pass {selected}</h2>
 
-                {data && (
-                    <form onSubmit={handleSubmit} style={{marginTop: 20}}>
-                        {/* core fields */}
-                        <Field label="Organization Name" path="organizationName"
-                               data={data} set={setData}/>
-                        <Field label="Description" path="description"
-                               data={data} set={setData}/>
-                        <Field label="Background Color" type="color"
-                               path="backgroundColor" data={data} set={setData}/>
-                        <Field label="Foreground Color" type="color"
-                               path="foregroundColor" data={data} set={setData}/>
-                        <Field label="Label Color" type="color"
-                               path="labelColor" data={data} set={setData}/>
-                        <Field label="Logo Text" path="logoText"
-                               data={data} set={setData}/>
-                        <Field label="Relevant Date & Time" type="datetime-local"
-                               path="relevantDate" data={data} set={setData}/>
-
-                        {/* header / primary / secondary sections – keep unchanged */}
-                        <h3>Header Field</h3>
-                        <Field label="Header Label"
-                               path="eventTicket.headerFields.0.label"
-                               data={data} set={setData}/>
-                        <Field label="Header Value" type="datetime-local"
-                               path="eventTicket.headerFields.0.value"
-                               data={data} set={setData}/>
-                        <Field label="Header DateStyle"
-                               path="eventTicket.headerFields.0.dateStyle"
-                               data={data} set={setData}/>
-
-                        <h3>Primary Field</h3>
-                        <Field label="Primary Label"
-                               path="eventTicket.primaryFields.0.label"
-                               data={data} set={setData}/>
-                        <Field label="Primary Value"
-                               path="eventTicket.primaryFields.0.value"
-                               data={data} set={setData}/>
-
-                        <h3>Secondary Fields</h3>
-                        <Field label="Sec 1 Label"
-                               path="eventTicket.secondaryFields.0.label"
-                               data={data} set={setData}/>
-                        <Field label="Sec 1 Value"
-                               path="eventTicket.secondaryFields.0.value"
-                               data={data} set={setData}/>
-                        <Field label="Sec 2 Label"
-                               path="eventTicket.secondaryFields.1.label"
-                               data={data} set={setData}/>
-                        <Field label="Sec 2 Value"
-                               path="eventTicket.secondaryFields.1.value"
-                               data={data} set={setData}/>
-                        <Field label="Sec 2 Alignment"
-                               path="eventTicket.secondaryFields.1.textAlignment"
-                               data={data} set={setData}/>
-
-                        {/* standing or seated */}
-                        <h3>Auxiliary Fields</h3>
-                        <div style={{marginBottom: 16}}>
-                            <label style={{fontSize: 13}}>
-                                <input
-                                    type="checkbox"
-                                    checked={isStanding}
-                                    onChange={e => setIsStanding(e.target.checked)}
-                                    style={{marginRight: 6}}
-                                />
-                                Standing Ticket
-                            </label>
-                        </div>
-
-                        {isStanding ? (
-                            <div style={{marginBottom: 12}}>
-                                <label style={{display: 'block', fontSize: 12, marginBottom: 4}}>
-                                    STANDING
-                                </label>
-                                <input
-                                    type="text"
-                                    value={standingNumber}
-                                    onChange={e => setStandingNumber(e.target.value)}
-                                    style={{width: '100%', padding: 6, boxSizing: 'border-box'}}
-                                    required
-                                />
-                            </div>
-                        ) : (
-                            <>
-                                <Field label="Block"
-                                       path="eventTicket.auxiliaryFields.0.value"
-                                       data={data} set={setData}/>
-                                <Field label="Row"
-                                       path="eventTicket.auxiliaryFields.1.value"
-                                       data={data} set={setData}/>
-                                <Field label="Seat"
-                                       path="eventTicket.auxiliaryFields.2.value"
-                                       data={data} set={setData}/>
-                            </>
-                        )}
-
-                        <h3>Barcode</h3>
-                        <Field label="Barcode Message"
-                               path="barcode.message" data={data} set={setData}/>
-                        <Field label="Barcode AltText"
-                               path="barcode.altText" data={data} set={setData}/>
-
-                        <button
-                            type="submit"
-                            disabled={saving}
-                            style={{marginTop: 16, padding: '8px 16px', width: '100%'}}
-                        >
-                            {saving ? 'Saving…' : 'Save & Push'}
-                        </button>
-                    </form>
-                )}
+            {/* MODE TOGGLE */}
+            <div style={{ marginBottom: 16 }}>
+                <button
+                    onClick={() => setRawMode(false)}
+                    disabled={!rawMode}
+                    style={{ marginRight: 8 }}
+                >
+                    Form Editor
+                </button>
+                <button onClick={() => setRawMode(true)} disabled={rawMode}>
+                    Raw Editor
+                </button>
             </div>
 
-            <PassPreview data={previewData}/>
+            {/* FLEX LAYOUT */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 40 }}>
+                {/* LEFT: Form or Raw */}
+                <div style={{ flex: 1 }}>
+                    {rawMode ? (
+                        <>
+                            <h3>Edit pass.json</h3>
+                            <Editor
+                                height="300px"
+                                defaultLanguage="json"
+                                value={rawJson}
+                                onChange={v => setRawJson(v || '')}
+                                options={{
+                                    minimap: { enabled: false },
+                                    formatOnPaste: true,
+                                    formatOnType: true,
+                                    tabSize: 2
+                                }}
+                            />
+
+                            <h3 style={{ marginTop: 20 }}>Existing Assets</h3>
+                            {assetList.length > 0 ? (
+                                <ul>
+                                    {assetList.map((name, i) => (
+                                        <li key={`${name}-${i}`}>{name}</li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p>(no assets found)</p>
+                            )}
+
+                            <h3>Upload Replacements</h3>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={e => {
+                                    const files = Array.from(e.target.files);
+                                    setRawFiles(f =>
+                                        files.reduce((acc, file) => {
+                                            acc[file.name] = file;
+                                            return acc;
+                                        }, { ...f })
+                                    );
+                                }}
+                            />
+                            {Object.keys(rawFiles).length > 0 && (
+                                <ul>
+                                    {Object.keys(rawFiles).map((name, i) => (
+                                        <li key={`${name}-${i}`}>{name}</li>
+                                    ))}
+                                </ul>
+                            )}
+
+                            <button onClick={handleRawSubmit} disabled={saving} style={{ marginTop: 12 }}>
+                                {saving ? 'Saving…' : 'Save Raw'}
+                            </button>
+                        </>
+                    ) : (
+                        <form onSubmit={handleFormSubmit}>
+                            <Field
+                                label="Organization Name"
+                                path="organizationName"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Description"
+                                path="description"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Background Color"
+                                type="color"
+                                path="backgroundColor"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Foreground Color"
+                                type="color"
+                                path="foregroundColor"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Label Color"
+                                type="color"
+                                path="labelColor"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Logo Text"
+                                path="logoText"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Relevant Date & Time"
+                                type="datetime-local"
+                                path="relevantDate"
+                                data={data}
+                                set={setData}
+                            />
+
+                            <h3>Header Field</h3>
+                            <Field
+                                label="Header Label"
+                                path="eventTicket.headerFields.0.label"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Header Value"
+                                type="datetime-local"
+                                path="eventTicket.headerFields.0.value"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Header DateStyle"
+                                path="eventTicket.headerFields.0.dateStyle"
+                                data={data}
+                                set={setData}
+                            />
+
+                            <h3>Primary Field</h3>
+                            <Field
+                                label="Primary Label"
+                                path="eventTicket.primaryFields.0.label"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Primary Value"
+                                path="eventTicket.primaryFields.0.value"
+                                data={data}
+                                set={setData}
+                            />
+
+                            <h3>Secondary Fields</h3>
+                            <Field
+                                label="Sec 1 Label"
+                                path="eventTicket.secondaryFields.0.label"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Sec 1 Value"
+                                path="eventTicket.secondaryFields.0.value"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Sec 2 Label"
+                                path="eventTicket.secondaryFields.1.label"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Sec 2 Value"
+                                path="eventTicket.secondaryFields.1.value"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Sec 2 Alignment"
+                                path="eventTicket.secondaryFields.1.textAlignment"
+                                data={data}
+                                set={setData}
+                            />
+
+                            <h3>Auxiliary Fields</h3>
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={{ fontSize: 13 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!data.eventTicket.auxiliaryFields?.find(a => a.key === 'standing')}
+                                        onChange={e => {
+                                            if (e.target.checked) {
+                                                setData(d => ({
+                                                    ...d,
+                                                    eventTicket: {
+                                                        ...d.eventTicket,
+                                                        auxiliaryFields: [{ key: 'standing', label: 'STANDING', value: '' }]
+                                                    }
+                                                }));
+                                            } else {
+                                                setData(d => ({
+                                                    ...d,
+                                                    eventTicket: {
+                                                        ...d.eventTicket,
+                                                        auxiliaryFields: [{}, {}, {}]
+                                                    }
+                                                }));
+                                            }
+                                        }}
+                                        style={{ marginRight: 6 }}
+                                    />
+                                    Standing Ticket
+                                </label>
+                            </div>
+                            {data.eventTicket.auxiliaryFields?.[0]?.key === 'standing' ? (
+                                <Field
+                                    label="Standing Number"
+                                    path="eventTicket.auxiliaryFields.0.value"
+                                    data={data}
+                                    set={setData}
+                                />
+                            ) : (
+                                <>
+                                    <Field
+                                        label="Block"
+                                        path="eventTicket.auxiliaryFields.0.value"
+                                        data={data}
+                                        set={setData}
+                                    />
+                                    <Field
+                                        label="Row"
+                                        path="eventTicket.auxiliaryFields.1.value"
+                                        data={data}
+                                        set={setData}
+                                    />
+                                    <Field
+                                        label="Seat"
+                                        path="eventTicket.auxiliaryFields.2.value"
+                                        data={data}
+                                        set={setData}
+                                    />
+                                </>
+                            )}
+
+                            <h3>Barcode</h3>
+                            <Field
+                                label="Barcode Message"
+                                path="barcode.message"
+                                data={data}
+                                set={setData}
+                            />
+                            <Field
+                                label="Barcode AltText"
+                                path="barcode.altText"
+                                data={data}
+                                set={setData}
+                            />
+
+                            <button
+                                type="submit"
+                                disabled={saving}
+                                style={{ marginTop: 16, padding: '8px 16px', width: '100%' }}
+                            >
+                                {saving ? 'Saving…' : 'Save & Push'}
+                            </button>
+                        </form>
+                    )}
+                </div>
+
+                {/* LIVE PREVIEW */}
+                <div style={{ minWidth: 300 }}>
+                    <h3>Live Preview</h3>
+                    <PassPreview
+                        data={
+                            rawMode ? JSON.parse(rawJson) : JSON.parse(JSON.stringify(data))
+                        }
+                    />
+                </div>
+            </div>
         </div>
     );
 }

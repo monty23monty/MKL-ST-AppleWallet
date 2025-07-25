@@ -173,3 +173,12 @@ export async function deleteTemplateFile(name, idToken) {
     });
     if (!res.ok) throw new Error('Failed to delete file');
 }
+
+export async function listPassAssets(serial, idToken) {
+    const res = await fetch(
+        buildUrl(`/admin/passes/${encodeURIComponent(serial)}/assets`),
+        { headers: authHeaders(idToken) }
+    );
+    if (!res.ok) throw new Error("Could not list assets");
+    return res.json(); // array of filenames
+}

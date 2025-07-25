@@ -8,6 +8,8 @@ import UpdatePass from './pages/UpdatePass';
 import Navbar from './components/Navbar';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import TemplateEditor from './pages/TemplateEditor';
+import PassEdit from "./pages/PassEdit.jsx";
+import PassList from "./pages/PassList.jsx";
 
 function App() {
   const auth = useAuth();
@@ -41,6 +43,8 @@ function App() {
           <Route path="/update-pass" element={<UpdatePass />} />
           <Route path="/update-pass/:serial" element={<UpdatePass />} />
           <Route path="/template-editor" element={<TemplateEditor />} />
+          <Route path="/passes/:serial" element={<PassEdit />} />
+          <Route path="/passes" element={<PassList />} />
         </Routes>
       </div>
     );
