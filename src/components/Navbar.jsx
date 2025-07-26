@@ -6,7 +6,7 @@ export default function Navbar({onSignOut}) {
         <header className="navbar">
             <div className="navbar-brand">
                 <NavLink to="/dashboard" className="home-link" title="Dashboard" aria-label="Dashboard">
-                    <img src="/ZUES_MKL_LOGO.svg" alt="Logo" className="navbar-logo"/>
+                    <img src="/download.png" alt="Logo" className="navbar-logo"/>
                 </NavLink>
             </div>
             <nav>
@@ -16,6 +16,7 @@ export default function Navbar({onSignOut}) {
                 <NavLink to="/passes">Update Pass</NavLink>
                 <NavLink to="/fixtures">Fixtures</NavLink>
                 <NavLink to="/template-editor">Template Editor</NavLink>
+                <NavLink to={"/bulk-edit"}>Bulk Edit</NavLink>
                 <button onClick={onSignOut}>Sign&nbsp;out</button>
             </nav>
         </header>

@@ -10,6 +10,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import TemplateEditor from './pages/TemplateEditor';
 import PassEdit from "./pages/PassEdit.jsx";
 import PassList from "./pages/PassList.jsx";
+import BulkEdit from "./pages/BulkEdit.jsx";
 
 function App() {
   const auth = useAuth();
@@ -45,6 +46,7 @@ function App() {
           <Route path="/template-editor" element={<TemplateEditor />} />
           <Route path="/passes/:serial" element={<PassEdit />} />
           <Route path="/passes" element={<PassList />} />
+          <Route path="/bulk-edit" element={<BulkEdit />} />
         </Routes>
       </div>
     );

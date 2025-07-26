@@ -42,7 +42,7 @@ function buildPassData(row) {
             secondaryFields: [
                 {key: 'opponent', label: 'OPPONENT', value: 'Leeds Knights'},
                 {
-                    key: 'ticketType', label: 'TICKET TYPE', value: row.sec2,
+                    key: 'ticketType', label: 'TICKET TYPE', value: row.type,
                     textAlignment: 'PKTextAlignmentRight'
                 }
             ],
