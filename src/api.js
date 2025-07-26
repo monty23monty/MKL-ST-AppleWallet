@@ -67,13 +67,36 @@ export async function getPassData(serial, idToken) {
     return response.json();
 }
 
-export async function updatePassData(serial, passData, idToken) {
+export async function updatePassData(
+    serial,
+    passData,
+    idToken,
+    files = {}
+) {
     if (!idToken) throw new Error('User is not signed in');
-    const headers = { Authorization: idToken };
-    const response = await fetch(buildUrl(`/admin/passes/${serial}`), { method: 'POST', headers, body: JSON.stringify({ passData }) });
-    if (!response.ok) throw new Error('Failed to update pass data');
-    return response.json();
+    const headers = {
+        'Content-Type': 'application/json',
+        Authorization: idToken
+    };
+    const body = JSON.stringify({
+        passData,
+        files   // may be empty object or { filename: base64, … }
+    });
+    const res = await fetch(
+        buildUrl(`/admin/passes/${encodeURIComponent(serial)}`),
+        {
+            method: 'POST',
+            headers,
+            body
+        }
+    );
+    if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Failed to update pass: ${res.status} ${txt}`);
+    }
+    return res.json();
 }
+
 
 /* ── mail helpers ───────────────────────────────────── */
 
@@ -176,9 +199,82 @@ export async function deleteTemplateFile(name, idToken) {
 
 export async function listPassAssets(serial, idToken) {
     const res = await fetch(
-        buildUrl(`/admin/passes/${encodeURIComponent(serial)}/assets`),
-        { headers: authHeaders(idToken) }
+        buildUrl(`/admin/passes/${serial}/assets`),
+        {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${idToken}`
+            }
+        }
     );
-    if (!res.ok) throw new Error("Could not list assets");
-    return res.json(); // array of filenames
+    if (!res.ok) {
+        throw new Error(`Failed to list assets (${res.status})`);
+    }
+    return await res.json(); // array of filenames
+}
+
+export async function getPassFile(serial, filename, idToken) {
+    if (!idToken) throw new Error('User is not signed in');
+    const url = buildUrl(`/admin/passes/${encodeURIComponent(serial)}/files/${encodeURIComponent(filename)}`);
+    const res = await fetch(url, {
+        method: 'GET',
+        headers: { Authorization: idToken }
+    });
+    if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`GET ${filename} failed: ${res.status} ${txt}`);
+    }
+    if (filename.toLowerCase().endsWith('.json')) {
+        return await res.text();    // JSON payload
+    } else {
+        return await res.blob();    // binary Blob
+    }
+}
+
+/**
+ * Upload or replace a single file inside the .pkpass.
+ * content may be either a string (for JSON) or a Blob/File.
+ */
+export async function uploadPassFile(serial, filename, content, idToken) {
+    if (!idToken) throw new Error('User is not signed in');
+    const url = buildUrl(`/admin/passes/${encodeURIComponent(serial)}/files/${encodeURIComponent(filename)}`);
+    const isJson = filename.toLowerCase().endsWith('.json');
+    const headers = { Authorization: idToken };
+    let body;
+
+    if (isJson) {
+        headers['Content-Type'] = 'application/json';
+        body = content; // stringified JSON
+    } else {
+        // for binaries, let fetch handle the Blob content-type
+        body = content;
+    }
+
+    const res = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body
+    });
+    if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`PUT ${filename} failed: ${res.status} ${txt}`);
+    }
+    return await res.text();
+}
+
+/**
+ * Delete a single file from the .pkpass bundle.
+ */
+export async function deletePassFile(serial, filename, idToken) {
+    if (!idToken) throw new Error('User is not signed in');
+    const url = buildUrl(`/admin/passes/${encodeURIComponent(serial)}/files/${encodeURIComponent(filename)}`);
+    const res = await fetch(url, {
+        method: 'DELETE',
+        headers: { Authorization: idToken }
+    });
+    if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`DELETE ${filename} failed: ${res.status} ${txt}`);
+    }
 }

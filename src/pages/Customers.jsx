@@ -125,7 +125,7 @@ export default function Customers() {
                                 >
                                     Update Pass
                                 </button>
-                                <button onClick={() => resendPass(r.serialNumber)}>
+                                <button onClick={() => resendPass(r.serialNumber, idToken)}>
                                     Resend
                                 </button>
                             </td>
