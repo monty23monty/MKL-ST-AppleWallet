@@ -1,29 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useAuth } from 'react-oidc-context';
 import { getMetrics, bulkSend } from '../api';
 
 export default function Dashboard() {
-    const [m, setM] = useState(null);
+    const auth = useAuth();
+    const idToken = auth.user?.id_token;
+
+    // we'll store the raw { [status: string]: number } map here
+    const [metrics, setMetrics] = useState({});
     const [sending, setSending] = useState(false);
 
-    // helper to load metrics
-    const loadMetrics = async () => {
+    const loadMetrics = useCallback(async () => {
+        if (!idToken) return;
         try {
-            const data = await getMetrics();
-            setM(data);
+            const data = await getMetrics(idToken);
+            setMetrics(data);
         } catch (err) {
             console.error('Failed to load metrics', err);
         }
-    };
+    }, [idToken]);
 
     useEffect(() => {
         loadMetrics();
-    }, []);
+    }, [loadMetrics]);
 
     const handleSend = async () => {
         setSending(true);
         try {
-            await bulkSend();
-            await loadMetrics();     // re-fetch AFTER bulkSend resolves
+            await bulkSend(idToken);
+            await loadMetrics();
         } catch (err) {
             console.error('bulkSend failed', err);
         } finally {
@@ -31,15 +36,18 @@ export default function Dashboard() {
         }
     };
 
-    if (!m) return <p>Loading…</p>;
+    if (!metrics) {
+        return <p>Loading…</p>;
+    }
 
     return (
         <>
             <h1>Season Dashboard</h1>
             <ul>
-                <li>Pending: {m.pending}</li>
-                <li>Queued : {m.queued}</li>
-                <li>Mailed : {m.mailed}</li>
+                {Object.entries(metrics).map(([status, count]) => {
+                    const label = status.charAt(0).toUpperCase() + status.slice(1);
+                    return <li key={status}>{label}: {count}</li>;
+                })}
             </ul>
             <button onClick={handleSend} disabled={sending}>
                 {sending ? 'Sending…' : 'Send season passes'}

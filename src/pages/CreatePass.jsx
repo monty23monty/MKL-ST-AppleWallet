@@ -1,5 +1,6 @@
 import React, {useState} from 'react'
 import {createPass} from '../api'
+import { useAuth } from 'react-oidc-context';
 
 const init = {
     organizationName: "Milton Keynes Lightning",
@@ -67,9 +68,13 @@ function Field({label, type = "text", path, data, set}) {
 }
 
 export default function CreatePass() {
+    const auth = useAuth();
+    const accessToken = auth.user?.access_token;
+
     const [email, setEmail] = useState('')
     const [data, setData] = useState(init)
     const [status, setStatus] = useState('idle')
+    const [errorMsg, setErrorMsg] = useState('');
     const [isStanding, setIsStanding] = useState(false);
     const [standingNumber, setStandingNumber] = useState('');
 
@@ -86,6 +91,8 @@ export default function CreatePass() {
     const submit = async e => {
         e.preventDefault();
         setStatus('working');
+        setErrorMsg('');
+
 
         // build a clean passData
         const pd = {
@@ -113,10 +120,17 @@ export default function CreatePass() {
         };
 
         try {
-            await createPass({email, passData: pd});
+            await createPass({
+                email,
+                passData: pd,
+                firstName: data.firstName,
+                lastName: data.lastName
+            }, accessToken);
             setStatus('done');
-        } catch {
+        } catch(err) {
+            console.error('createPass failed ->', err);
             setStatus('error');
+            setErrorMsg(err.message || String(err));
         }
     };
 
@@ -138,6 +152,8 @@ export default function CreatePass() {
                     disabled={status === 'working'}
                 />
             </div>
+            <Field label="First Name" path="firstName" type="text" data={data} set={setData}/>
+            <Field label="Last Name" path="lastName" type="text" data={data} set={setData}/>
 
             {/* All the passData fields */}
             <Field label="Organization Name" path="organizationName" type="text" data={data} set={setData}/>
@@ -225,7 +241,11 @@ export default function CreatePass() {
             </button>
 
             {status === 'done' && <p style={{color: 'green', marginTop: 12}}>✓ Pass stored.</p>}
-            {status === 'error' && <p style={{color: 'crimson', marginTop: 12}}>✖ Error creating pass.</p>}
+            {status === 'error' && (
+                <p style={{color: 'crimson', marginTop: 12}}>
+                    ✖ Error creating pass{errorMsg ? `: ${errorMsg}` : ''}
+                </p>
+            )}
         </form>
     )
 }

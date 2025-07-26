@@ -1,4 +1,5 @@
 import React, {useState} from 'react';
+import {useAuth} from 'react-oidc-context';
 import {createPass} from '../api';
 
 /* ───── helpers ─────────────────────────────────────────────── */
@@ -41,7 +42,7 @@ function buildPassData(row) {
             secondaryFields: [
                 {key: 'opponent', label: 'OPPONENT', value: 'Leeds Knights'},
                 {
-                    key: 'ticketType', label: 'TICKET TYPE', value: row.sec2,
+                    key: 'ticketType', label: 'TICKET TYPE', value: row.type,
                     textAlignment: 'PKTextAlignmentRight'
                 }
             ],
@@ -60,6 +61,9 @@ function buildPassData(row) {
 /* ───────────────────────────────────────────────────────────── */
 
 export default function BulkCreate() {
+    const auth = useAuth();
+    const accessToken = auth.user?.access_token;
+
     const [rows, setRows] = useState([]);
     const [creating, setCreating] = useState(false);
     const [result, setResult] = useState(null);
@@ -94,7 +98,18 @@ export default function BulkCreate() {
         for (const r of rows) {
             try {
                 const pd = buildPassData(r);
-                await createPass({email: r.email, passData: pd});
+                console.log('🚀 Sending:', {
+                    email:     r.email,
+                    firstName: r.firstname,
+                    lastName:  r.lastname,
+                    passData:  buildPassData(r)
+                });
+                await createPass({
+                    email: r.email,
+                    passData: pd,
+                    firstName: r.firstname,
+                    lastName: r.lastname
+                }, accessToken);
                 ok++;
             } catch (err) {
                 console.error(err);

@@ -1,36 +1,44 @@
 import {useEffect, useState} from 'react';
+import {useAuth} from 'react-oidc-context';
 import {useNavigate} from 'react-router-dom';
-import {listPasses, resendPass} from '../api';
+import {listPasses, mailPending, resendPass} from '../api';
 
 export default function Customers() {
+    const auth     = useAuth();
+    const idToken  = auth.user?.id_token;
     const navigate = useNavigate();
-    const [rows, setRows] = useState([]);
 
-    /* per-column search terms */
+    const [rows,    setRows]    = useState([]);
+    const [sending, setSending] = useState(false);
+
+    // search terms
     const [sEmail, setSEmail] = useState('');
     const [sFirst, setSFirst] = useState('');
-    const [sLast, setSLast] = useState('');
+    const [sLast,  setSLast]  = useState('');
     const [sBlock, setSBlock] = useState('');
-    const [sRow, setSRow] = useState('');
-    const [sSeat, setSSeat] = useState('');
-    const [sStatus, setSStatus] = useState('');
+    const [sRow,   setSRow]   = useState('');
+    const [sSeat,  setSSeat]  = useState('');
+    const [sStatus,setSStatus]= useState('');
 
-    useEffect(() => {
-        listPasses().then(setRows);
-    }, []);
+    const refresh = () => {
+        if (!idToken) return;
+        listPasses(idToken).then(setRows);
+    };
 
-    /* ---------- filtered rows ------------------------------------------ */
+    useEffect(refresh, [idToken]);
+
+    const pendingCount = rows.filter(r => r.emailStatus === 'pending').length;
+
+    // filter, now reading names from r.firstName / r.lastName
     const filtered = rows.filter(r => {
-        const pd = JSON.parse(r.passData || '{}');
-        const email = (r.email || '').toLowerCase();
-        const first = (pd.firstName || '').toLowerCase();
-        const last = (pd.lastName || '').toLowerCase();
-        const block = (pd.eventTicket?.auxiliaryFields?.[0]?.value || '')
-            .toString().toLowerCase();
-        const row = (pd.eventTicket?.auxiliaryFields?.[1]?.value || '')
-            .toString().toLowerCase();
-        const seat = (pd.eventTicket?.auxiliaryFields?.[2]?.value || '')
-            .toString().toLowerCase();
+        const pd     = JSON.parse(r.passData || '{}');
+        const aux    = pd.eventTicket?.auxiliaryFields || [];
+        const email  = (r.email     || '').toLowerCase();
+        const first  = (r.firstName || pd.firstName || '').toLowerCase();
+        const last   = (r.lastName  || pd.lastName  || '').toLowerCase();
+        const block  = (aux[0]?.value || '').toString().toLowerCase();
+        const row    = (aux[1]?.value || '').toString().toLowerCase();
+        const seat   = (aux[2]?.value || '').toString().toLowerCase();
         const status = (r.emailStatus || '').toLowerCase();
 
         return email.includes(sEmail.toLowerCase()) &&
@@ -41,108 +49,83 @@ export default function Customers() {
             seat.includes(sSeat.toLowerCase()) &&
             status.includes(sStatus.toLowerCase());
     });
-    /* ------------------------------------------------------------------- */
+
+    const handleBulkSend = async () => {
+        if (!pendingCount) return;
+        if (!window.confirm(`Queue e-mails for ${pendingCount} pending passes?`)) return;
+
+        setSending(true);
+        try {
+            await mailPending(idToken);
+            alert('Bulk send queued – refresh in a minute to watch statuses update.');
+            refresh();
+        } catch (err) {
+            alert(err.message || 'Bulk send failed');
+        } finally {
+            setSending(false);
+        }
+    };
 
     return (
         <>
             <h2>Customers</h2>
 
+            <button
+                onClick={handleBulkSend}
+                disabled={sending || !pendingCount}
+                style={{margin: '12px 0', padding: '6px 22px'}}
+            >
+                {sending ? 'Queuing…' : `Mail all pending (${pendingCount})`}
+            </button>
+
             <table style={{width: '100%', borderCollapse: 'collapse'}}>
                 <thead>
-                {/* labels */}
                 <tr>
-                    {['Email', 'First Name', 'Last Name',
-                        'Block', 'Row', 'Seat', 'Status'].map(h => (
-                        <th
-                            key={h}
-                            style={{
-                                textAlign: 'left',
-                                borderBottom: '1px solid #ccc',
-                                padding: '4px 0'
-                            }}
-                        >
+                    {['Email','First Name','Last Name','Block','Row','Seat','Status'].map(h => (
+                        <th key={h} style={{textAlign:'left',borderBottom:'2px solid #000'}}>
                             {h}
                         </th>
                     ))}
                     <th/>
                 </tr>
-
-                {/* search inputs – widths auto-match each column */}
                 <tr>
-                    <th>
-                        <input
-                            value={sEmail} onChange={e => setSEmail(e.target.value)}
-                            placeholder="Search"
-                            style={{width: '100%', padding: 6, boxSizing: 'border-box'}}
-                        />
-                    </th>
-                    <th>
-                        <input
-                            value={sFirst} onChange={e => setSFirst(e.target.value)}
-                            placeholder="Search"
-                            style={{width: '100%', padding: 6, boxSizing: 'border-box'}}
-                        />
-                    </th>
-                    <th>
-                        <input
-                            value={sLast} onChange={e => setSLast(e.target.value)}
-                            placeholder="Search"
-                            style={{width: '100%', padding: 6, boxSizing: 'border-box'}}
-                        />
-                    </th>
-                    <th>
-                        <input
-                            value={sBlock} onChange={e => setSBlock(e.target.value)}
-                            placeholder="Search"
-                            style={{width: '100%', padding: 6, boxSizing: 'border-box'}}
-                        />
-                    </th>
-                    <th>
-                        <input
-                            value={sRow} onChange={e => setSRow(e.target.value)}
-                            placeholder="Search"
-                            style={{width: '100%', padding: 6, boxSizing: 'border-box'}}
-                        />
-                    </th>
-                    <th>
-                        <input
-                            value={sSeat} onChange={e => setSSeat(e.target.value)}
-                            placeholder="Search"
-                            style={{width: '100%', padding: 6, boxSizing: 'border-box'}}
-                        />
-                    </th>
-                    <th>
-                        <input
-                            value={sStatus} onChange={e => setSStatus(e.target.value)}
-                            placeholder="Search"
-                            style={{width: '100%', padding: 6, boxSizing: 'border-box'}}
-                        />
-                    </th>
+                    {[sEmail,sFirst,sLast,sBlock,sRow,sSeat,sStatus].map((val,i) => (
+                        <th key={i}>
+                            <input
+                                value={val}
+                                onChange={e => ([setSEmail,setSFirst,setSLast,setSBlock,setSRow,setSSeat,setSStatus][i])(e.target.value)}
+                                placeholder="Search"
+                                style={{width:'100%',padding:6}}
+                            />
+                        </th>
+                    ))}
                     <th/>
                 </tr>
                 </thead>
-
                 <tbody>
                 {filtered.map(r => {
-                    const pd = JSON.parse(r.passData || '{}');
+                    const pd  = JSON.parse(r.passData || '{}');
                     const aux = pd.eventTicket?.auxiliaryFields || [];
+                    const first = r.firstName || pd.firstName || '';
+                    const last  = r.lastName  || pd.lastName  || '';
+
                     return (
-                        <tr key={r.serialNumber} style={{borderBottom: '1px solid #eee'}}>
+                        <tr key={r.serialNumber} style={{borderBottom:'1px solid #eee'}}>
                             <td>{r.email}</td>
-                            <td>{pd.firstName}</td>
-                            <td>{pd.lastName}</td>
+                            <td>{first}</td>
+                            <td>{last}</td>
                             <td>{aux[0]?.value}</td>
                             <td>{aux[1]?.value}</td>
                             <td>{aux[2]?.value}</td>
                             <td>{r.emailStatus}</td>
-                            <td style={{whiteSpace: 'nowrap', padding: '4px 0'}}>
+                            <td style={{whiteSpace:'nowrap',padding:'4px 0'}}>
                                 <button
                                     onClick={() => navigate(`/update-pass/${r.serialNumber}`)}
-                                    style={{marginRight: 8}}
+                                    style={{marginRight:8}}
                                 >
-                                    Update Pass
+                                    Update Pass
                                 </button>
-                                <button onClick={() => resendPass(r.serialNumber)}>
+                                <button onClick={() => resendPass(r.serialNumber, idToken)}>
                                     Resend
                                 </button>
                             </td>

@@ -1,17 +1,27 @@
 // src/main.jsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import App from './App';
+import { AuthProvider } from 'react-oidc-context';
 import { BrowserRouter } from 'react-router-dom';
 
-import { Amplify } from 'aws-amplify';
-import awsConfig   from './awsConfig.js';     // v6 config from the previous step
-import App         from './App.jsx';
+const cognitoAuthConfig = {
+  authority: 'https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_LBU472pes',
+  client_id: '446f6ubc33tbcjonhb158ua9p7',
+  redirect_uri: 'http://localhost:5173',
+  response_type: 'code',
+  scope: 'email openid phone',
+};
 
-Amplify.configure(awsConfig);                // configure once, before render
-ReactDOM.createRoot(document.getElementById('root')).render(
-    <React.StrictMode>
-        <BrowserRouter>
-            <App />{/* wrapped by withAuthenticator inside */}
-        </BrowserRouter>
-    </React.StrictMode>,
+const root = ReactDOM.createRoot(document.getElementById('root'));
+
+// wrap the application with AuthProvider
+root.render(
+  <React.StrictMode>
+    <AuthProvider {...cognitoAuthConfig}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </AuthProvider>
+  </React.StrictMode>,
 );
