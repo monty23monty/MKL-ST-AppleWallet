@@ -25,7 +25,7 @@ function buildPassData(row) {
         foregroundColor: hexToRgb('#000000'),
         labelColor: hexToRgb('#000000'),
         logoText: 'MKL Season Ticket',
-        relevantDate: new Date().toISOString(),
+        relevantDate: '2025-08-30T19:00:00.000Z',
 
         eventTicket: {
             headerFields: [{
