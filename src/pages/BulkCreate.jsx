@@ -31,7 +31,7 @@ function buildPassData(row) {
             headerFields: [{
                 key: 'nextGame',
                 label: 'NEXT GAME',
-                value: '2025-10-10T19:00:00.000Z',
+                value: '2025-08-30T19:00:00.000Z',
                 dateStyle: 'PKDateStyleShort'
             }],
             primaryFields: [{
@@ -40,7 +40,7 @@ function buildPassData(row) {
                 value: row.primary
             }],
             secondaryFields: [
-                {key: 'opponent', label: 'OPPONENT', value: 'Leeds Knights'},
+                {key: 'opponent', label: 'OPPONENT', value: 'Tilberg'},
                 {
                     key: 'ticketType', label: 'TICKET TYPE', value: row.type,
                     textAlignment: 'PKTextAlignmentRight'
@@ -99,10 +99,10 @@ export default function BulkCreate() {
             try {
                 const pd = buildPassData(r);
                 console.log('🚀 Sending:', {
-                    email:     r.email,
+                    email: r.email,
                     firstName: r.firstname,
-                    lastName:  r.lastname,
-                    passData:  buildPassData(r)
+                    lastName: r.lastname,
+                    passData: buildPassData(r)
                 });
                 await createPass({
                     email: r.email,
